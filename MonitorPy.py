@@ -197,8 +197,6 @@ class MonitorController:
 
         self.position_near_tray()
         self.root.focus_force()
-        # REMOVE the following line:
-        # self.root.mainloop()
 
     def on_monitor_select(self, event=None):
         sel = self.monitor_listbox.curselection()
@@ -232,7 +230,11 @@ class MonitorController:
         self.set_brightness(50)
         self.set_contrast(50)
         self.update_controls()
-
+        
+    def open_download_link(self):
+        import webbrowser
+        webbrowser.open("https://github.com/paulomarconi/MonitorPy")
+            
     def hide_window(self):
         if self.root:
             self.root.withdraw()
@@ -263,10 +265,8 @@ class MonitorController:
         if self.contrast_var:
             self.contrast_var.set(50)
             self.contrast_label.config(text="50%")
-
-    def open_download_link(self):
-        import webbrowser
-        webbrowser.open("https://github.com/paulomarconi/MonitorPy")
+    
+    
 
     def run(self):
         icon_image = self.create_image(64, 64, 'black', 'white')
