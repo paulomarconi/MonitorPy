@@ -283,7 +283,7 @@ class MonitorController:
 
         def check_interrupt():
             try:
-                pass  # Just a placeholder, KeyboardInterrupt will be handled by Tkinter events
+                pass  
             except KeyboardInterrupt:
                 self.quit_app()
             self.root.after(100, check_interrupt)
