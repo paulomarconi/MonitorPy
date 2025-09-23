@@ -101,8 +101,7 @@ class MonitorController:
 
         if not self.root or not self.root.winfo_exists():
             self.create_control_window()
-        else:
-            # Position window near system tray (bottom right)
+        else:          
             self.position_near_tray()
             self.root.deiconify()
             self.root.lift()
@@ -161,7 +160,7 @@ class MonitorController:
         ttk.Label(top_frame, text="MonitorPy", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
         ttk.Button(top_frame, text="Reset to 50%", command=self.reset_values).pack(side=tk.RIGHT, padx=5)
 
-        ttk.Label(main_frame, text="Select Monitor:").pack(anchor=tk.W)
+        ttk.Label(main_frame, text="Select Monitor").pack(anchor=tk.W)
         self.monitor_listbox = tk.Listbox(main_frame, height=3)
         self.monitor_listbox.pack(fill=tk.X, pady=3)
         for i, name in enumerate(self.get_monitor_names()):
@@ -178,7 +177,7 @@ class MonitorController:
         sliders_frame = ttk.Frame(main_frame)
         sliders_frame.pack(fill=tk.X, pady=8)
 
-        ttk.Label(sliders_frame, text="Brightness:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(sliders_frame, text="Brightness").grid(row=0, column=0, sticky=tk.W)
         brightness_value = getattr(self, 'last_brightness', self.get_brightness())
         self.brightness_var = tk.IntVar(value=brightness_value)
         self.brightness_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.brightness_var,
@@ -187,7 +186,7 @@ class MonitorController:
         self.brightness_label = ttk.Label(sliders_frame, text=f"{self.brightness_var.get()}%")
         self.brightness_label.grid(row=2, column=0, sticky=tk.E)
 
-        ttk.Label(sliders_frame, text="Contrast:").grid(row=0, column=1, sticky=tk.W)
+        ttk.Label(sliders_frame, text="Contrast").grid(row=0, column=1, sticky=tk.W)
         contrast_value = getattr(self, 'last_contrast', self.get_contrast())
         self.contrast_var = tk.IntVar(value=contrast_value)
         self.contrast_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.contrast_var,
@@ -248,6 +247,7 @@ class MonitorController:
         monitor_names = self.get_monitor_names()
         current_monitor_name = monitor_names[self.selected_monitor_index] if monitor_names else "No monitor"
         return pystray.Menu(
+            pystray.MenuItem("MonitorPy v1.0.0 | Site", lambda icon, item: self.open_download_link(), enabled=True),
             pystray.MenuItem(f"Current Monitor: {current_monitor_name}", None, enabled=False),
             pystray.MenuItem("Show Controls", self.show_control_window, default=True),
             pystray.MenuItem("Reset to 50%", self.quick_reset),
@@ -263,6 +263,10 @@ class MonitorController:
         if self.contrast_var:
             self.contrast_var.set(50)
             self.contrast_label.config(text="50%")
+
+    def open_download_link(self):
+        import webbrowser
+        webbrowser.open("https://github.com/paulomarconi/MonitorPy")
 
     def run(self):
         icon_image = self.create_image(64, 64, 'black', 'white')
