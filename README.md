@@ -4,11 +4,11 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 
 ## Features
 
-- Adjust brightness and contrast for connected monitors
-- System tray icon with quick access menu
-- Select between multiple monitors
-- Reset brightness and contrast to default values
-- Lightweight and easy to use
+- Adjust brightness and contrast for connected monitors.
+- System tray icon with quick access menu.
+- Select between multiple monitors.
+- Reset brightness and contrast to default values.
+- Lightweight and easy to use.
 
 ## Requirements
 
@@ -23,14 +23,14 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 - Download and run the standalone `.exe` file from the Releases section. To uninstall, just delete the file.
 - Download `MonitorPy.py`, install the dependencies with:
 
-```sh
-pip install -r requirements.txt
-```
-and run
+    ```sh
+    pip install -r requirements.txt
+    ```
+    and run
 
-```sh
-python MonitorPy.py
-```
+    ```sh
+    python MonitorPy.py
+    ```
 
 - To build a standalone executable, use PyInstaller:
 
