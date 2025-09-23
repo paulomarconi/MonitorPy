@@ -3,11 +3,11 @@
 MonitorPy is a simple system tray Python application for Windows 10/11 that allows you to control your monitor's brightness and contrast directly from the tray.
 
 <figure>
-    <center><img src="https://raw.githubusercontent.com/paulomarconi/MonitorPy/master/MonitorPy1.png" alt="MonitorPy1" width="100%"/></center>
+    <center><img src="https://raw.githubusercontent.com/paulomarconi/MonitorPy/master/MonitorPy1.png" alt="MonitorPy1" width="80%"/></center>
 </figure>
 
 <figure>
-    <center><img src="https://raw.githubusercontent.com/paulomarconi/MonitorPy/master/MonitorPy2.png" alt="MonitorPy2" width="100%"/></center>
+    <center><img src="https://raw.githubusercontent.com/paulomarconi/MonitorPy/master/MonitorPy2.png" alt="MonitorPy2" width="80%"/></center>
 </figure>
 
 ## Features
