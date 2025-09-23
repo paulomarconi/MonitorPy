@@ -18,7 +18,6 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 - [pillow](https://pypi.org/project/Pillow/)
 - [pyinstaller](https://pypi.org/project/pyinstaller/)
 
-
 ## Usage
 
 - Download and run the standalone `.exe` file from the Releases section. To uninstall, just delete the file.
