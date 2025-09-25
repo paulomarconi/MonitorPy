@@ -21,6 +21,9 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 ## Requirements
 
 - Python 3.8+
+
+The following dependencies are used only if you run `Monitory.py` or build the standalone executable.
+
 - [monitorcontrol](https://pypi.org/project/monitorcontrol/)
 - [pystray](https://pypi.org/project/pystray/)
 - [pillow](https://pypi.org/project/Pillow/)
@@ -28,7 +31,7 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 
 ## Usage
 
-- Download and run the standalone `.exe` file from the Releases section. To uninstall, just delete the file.
+- Download and run the standalone `MonitorPy.exe` file from the **Releases** section. To uninstall, just delete the file.
 - Download `MonitorPy.py`, install the dependencies with:
 
     ```sh
@@ -40,7 +43,7 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
     python MonitorPy.py
     ```
 
-- To build a standalone executable, use PyInstaller:
+- To build the standalone executable, use PyInstaller:
 
     ```sh
     pyinstaller MonitorPy.spec
