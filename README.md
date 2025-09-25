@@ -42,9 +42,9 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 
 - To build a standalone executable, use PyInstaller:
 
-```sh
-pyinstaller MonitorPy.spec
-```
+    ```sh
+    pyinstaller MonitorPy.spec
+    ```
 
 ## How it works
 
