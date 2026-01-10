@@ -43,7 +43,7 @@ The following dependencies are used only if you run `Monitory.py` or build the s
     python MonitorPy.py
     ```
 
-- To build the standalone executable, use PyInstaller:
+- To build the standalone executable, use `PyInstaller`:
 
     ```sh
     pyinstaller MonitorPy.spec
