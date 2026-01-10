@@ -15,7 +15,8 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 - Adjust brightness and contrast for connected monitors.
 - System tray icon with quick access menu.
 - Select between multiple monitors.
-- Reset brightness and contrast to default values.
+- Edit Presets for brightness and contrast.
+- Autostart on Windows startup option.
 - Lightweight and easy to use.
 
 ## Requirements
@@ -52,8 +53,8 @@ The following dependencies are used only if you run `Monitory.py` or build the s
 ## How it works
 
 - The app discovers all connected monitors supporting DDC/CI.
-- You can select a monitor and adjust its brightness and contrast using sliders.
-- The tray icon provides quick access to show controls, reset values, and exit.
+- You can select a monitor and adjust its brightness and contrast using sliders, and presets.
+- The tray icon provides quick access to show controls, presets and edit presets values, autostar and exit.
   
 ## Troubleshooting
 

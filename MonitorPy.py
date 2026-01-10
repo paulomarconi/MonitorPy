@@ -10,6 +10,8 @@ import pystray
 from PIL import Image, ImageDraw
 import threading
 import sys
+import os
+from pathlib import Path
 
 try:
     from monitorcontrol import get_monitors
@@ -29,7 +31,7 @@ class MonitorController:
         self.current_contrast = []
         self.monitor_connected = False
         self.selected_monitor_index = 0
-        self.preset_1 = {"brightness": 100, "contrast": 50}
+        self.preset_1 = {"brightness": 100, "contrast": 70}
         self.preset_2 = {"brightness": 30, "contrast": 50}
 
         self.discover_monitors()
@@ -55,6 +57,120 @@ class MonitorController:
         if self.monitor_infos:
             self.current_brightness = self.monitor_infos[0]["brightness"]
             self.current_contrast = self.monitor_infos[0]["contrast"]
+
+    # --- Autostart (Windows) support ---
+    def _get_startup_paths(self):
+        """Return possible startup file paths (lnk and vbs) in the user's Startup folder."""
+        appdata = os.environ.get('APPDATA')
+        if not appdata:
+            return None, None
+        startup = os.path.join(appdata, r"Microsoft\Windows\Start Menu\Programs\Startup")
+        lnk = os.path.join(startup, 'MonitorPy.lnk')
+        vbs = os.path.join(startup, 'MonitorPy.vbs')
+        return lnk, vbs
+
+    def is_autostart_enabled(self):
+        lnk, vbs = self._get_startup_paths()
+        try:
+            return (lnk and os.path.exists(lnk)) or (vbs and os.path.exists(vbs))
+        except Exception:
+            return False
+
+    def enable_autostart(self):
+        lnk, vbs = self._get_startup_paths()
+        # Prefer creating a .lnk via Windows Script Host. Fall back to a .vbs launcher if pywin32 isn't available.
+        try:
+            try:
+                from win32com.client import Dispatch
+            except Exception:
+                Dispatch = None
+
+            if Dispatch and lnk:
+                shell = Dispatch('WScript.Shell')
+                shortcut = shell.CreateShortCut(lnk)
+                if getattr(sys, 'frozen', False):
+                    shortcut.Targetpath = sys.executable
+                    shortcut.WorkingDirectory = os.path.dirname(sys.executable)
+                    shortcut.Arguments = ''
+                else:
+                    pythonw = sys.executable
+                    # prefer pythonw to avoid a console when launching the script
+                    if pythonw.lower().endswith('python.exe'):
+                        pythonw = pythonw[:-len('python.exe')] + 'pythonw.exe'
+                    script = os.path.abspath(sys.argv[0])
+                    shortcut.Targetpath = pythonw
+                    shortcut.Arguments = f'"{script}"'
+                    shortcut.WorkingDirectory = os.path.dirname(script)
+                try:
+                    ico = os.path.join(os.path.dirname(sys.executable), 'python.exe')
+                    shortcut.IconLocation = ico
+                except Exception:
+                    pass
+                shortcut.save()
+                return True
+
+            # Fallback: create a .vbs in Startup that launches pythonw + script without showing a console
+            if vbs:
+                if getattr(sys, 'frozen', False):
+                    exe = sys.executable
+                    cmd = f'"{exe}"'
+                else:
+                    pythonw = sys.executable
+                    if pythonw.lower().endswith('python.exe'):
+                        pythonw = pythonw[:-len('python.exe')] + 'pythonw.exe'
+                    script = os.path.abspath(sys.argv[0])
+                    cmd = f'"{pythonw}" "{script}"'
+                content = (
+                    'Set WshShell = CreateObject("WScript.Shell")\n'
+                    f'WshShell.Run {cmd}, 0\n'
+                )
+                try:
+                    with open(vbs, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    return True
+                except Exception:
+                    return False
+        except Exception:
+            return False
+
+    def disable_autostart(self):
+        lnk, vbs = self._get_startup_paths()
+        ok = False
+        try:
+            if lnk and os.path.exists(lnk):
+                try:
+                    os.remove(lnk)
+                    ok = True
+                except Exception:
+                    pass
+            if vbs and os.path.exists(vbs):
+                try:
+                    os.remove(vbs)
+                    ok = True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return ok
+
+    def toggle_autostart(self, icon=None, item=None):
+        # Ensure runs on Tk main thread when invoked from tray
+        if self.root and threading.current_thread() is not threading.main_thread():
+            if self.root:
+                self.root.after(0, lambda: self.toggle_autostart(None, None))
+            return
+        try:
+            if self.is_autostart_enabled():
+                self.disable_autostart()
+            else:
+                self.enable_autostart()
+        finally:
+            # Refresh tray menu to update checked state
+            if self.tray_icon:
+                try:
+                    self.tray_icon.menu = self.create_tray_menu()
+                except Exception:
+                    pass
 
     def get_monitor_names(self):
         return [info["name"] for info in self.monitor_infos]
@@ -166,8 +282,8 @@ class MonitorController:
         top_frame.pack(fill=tk.X)
         ttk.Label(top_frame, text="MonitorPy", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
         ttk.Button(top_frame, text="Edit", command=self.open_edit_presets_window, width=len("Edit")).pack(side=tk.RIGHT, padx=1)
-        ttk.Button(top_frame, text="Noche", command=self.quick_preset_2, width=len("Preset 2")).pack(side=tk.RIGHT, padx=1)
-        ttk.Button(top_frame, text="Día", command=self.quick_preset_1, width=len("Preset 1")).pack(side=tk.RIGHT, padx=1)
+        ttk.Button(top_frame, text="Night", command=self.quick_preset_2, width=len("Preset 2")).pack(side=tk.RIGHT, padx=1)
+        ttk.Button(top_frame, text="Day", command=self.quick_preset_1, width=len("Preset 1")).pack(side=tk.RIGHT, padx=1)
 
         ttk.Label(main_frame, text="Select Monitor").pack(anchor=tk.W)
         self.monitor_listbox = tk.Listbox(main_frame, height=3)
@@ -294,9 +410,9 @@ class MonitorController:
         frame.pack(fill=tk.BOTH, expand=True)
 
         # Preset 1
-        ttk.Label(frame, text="Día").grid(row=0, column=0, columnspan=2, sticky=tk.W)
+        ttk.Label(frame, text="Day").grid(row=0, column=0, columnspan=2, sticky=tk.W)
         reset_b_var = tk.IntVar(value=self.preset_1.get("brightness", 100))
-        reset_c_var = tk.IntVar(value=self.preset_1.get("contrast", 50))
+        reset_c_var = tk.IntVar(value=self.preset_1.get("contrast", 70))
         ttk.Label(frame, text="Brightness:").grid(row=1, column=0, sticky=tk.W, pady=(4,0))
         reset_b_entry = ttk.Entry(frame, textvariable=reset_b_var, width=6)
         reset_b_entry.grid(row=1, column=1, sticky=tk.W, pady=(4,0))
@@ -306,7 +422,7 @@ class MonitorController:
 
         # Preset 2
         ttk.Separator(frame).grid(row=3, column=0, columnspan=2, sticky=tk.EW, pady=6)
-        ttk.Label(frame, text="Noche").grid(row=4, column=0, columnspan=2, sticky=tk.W)
+        ttk.Label(frame, text="Night").grid(row=4, column=0, columnspan=2, sticky=tk.W)
         p_b_var = tk.IntVar(value=self.preset_2.get("brightness", 30))
         p_c_var = tk.IntVar(value=self.preset_2.get("contrast", 50))
         ttk.Label(frame, text="Brightness:").grid(row=5, column=0, sticky=tk.W, pady=(4,0))
@@ -416,8 +532,13 @@ class MonitorController:
             pystray.MenuItem(f"Current Monitor: {current_monitor_name}", None, enabled=False),
             pystray.MenuItem("Show Controls", self.show_control_window, default=True),
             pystray.MenuItem("Edit Presets", lambda icon, item: self.open_edit_presets_window()),
-            pystray.MenuItem("Día", self.quick_preset_1),
-            pystray.MenuItem("Noche", self.quick_preset_2),
+            pystray.MenuItem("Day", self.quick_preset_1),
+            pystray.MenuItem("Night", self.quick_preset_2),
+            pystray.MenuItem(
+                "Autostart on Windows startup",
+                lambda icon, item: self.toggle_autostart(),
+                checked=lambda item: self.is_autostart_enabled()
+            ),
             pystray.MenuItem("Exit", self.quit_app)
         )
 
@@ -429,12 +550,12 @@ class MonitorController:
             return
 
         self.set_brightness(self.preset_1.get("brightness", 100))
-        self.set_contrast(self.preset_1.get("contrast", 50))
+        self.set_contrast(self.preset_1.get("contrast", 70))
         if self.brightness_var:
             self.brightness_var.set(self.preset_1.get("brightness", 100))
             self.brightness_label.config(text=f"{self.brightness_var.get()}%")
         if self.contrast_var:
-            self.contrast_var.set(self.preset_1.get("contrast", 50))
+            self.contrast_var.set(self.preset_1.get("contrast", 70))
             self.contrast_label.config(text=f"{self.contrast_var.get()}%")
     
     def quick_preset_2(self):
