@@ -587,7 +587,7 @@ class MonitorController:
         monitor_names = self.get_monitor_names()
         current_monitor_name = monitor_names[self.selected_monitor_index] if monitor_names else "No monitor"
         return pystray.Menu(
-            pystray.MenuItem("MonitorPy v1.0.0 | Site", lambda icon, item: self.open_download_link(), enabled=True),
+            pystray.MenuItem("MonitorPy v1.0.1 | Site", lambda icon, item: self.open_download_link(), enabled=True),
             pystray.MenuItem(f"Current Monitor: {current_monitor_name}", None, enabled=False),
             pystray.MenuItem("Show Controls", self.show_control_window, default=True),
             pystray.MenuItem("Edit Presets", lambda icon, item: self.open_edit_presets_window()),
