@@ -12,6 +12,7 @@ import threading
 import sys
 import os
 from pathlib import Path
+import time
 
 try:
     from monitorcontrol import get_monitors
@@ -229,6 +230,11 @@ class MonitorController:
             self.root.deiconify()
             self.root.lift()
             self.root.focus_force()
+            try:
+                # start polling for outside clicks
+                self.root.after(100, self._outside_click_check)
+            except Exception:
+                pass
 
     def position_near_tray(self):
         self.root.update_idletasks()
@@ -265,6 +271,54 @@ class MonitorController:
             x = screen_width - width - 20
             y = screen_height - height - 60
         self.root.geometry(f"+{x}+{y}")
+
+    def _outside_click_check(self):
+        """Periodically check whether the user clicked outside the control window.
+        If a left-button click occurs outside the window bounds, hide the window.
+        Uses Win32 GetCursorPos and GetAsyncKeyState to detect clicks outside the app.
+        """
+        try:
+            if not self.root or not self.root.winfo_exists() or self.root.state() == 'withdrawn':
+                return
+            import ctypes
+            class POINT(ctypes.Structure):
+                _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+            pt = POINT()
+            if not ctypes.windll.user32.GetCursorPos(ctypes.byref(pt)):
+                # Failed to get cursor position; schedule next check
+                self.root.after(100, self._outside_click_check)
+                return
+            mx, my = pt.x, pt.y
+
+            rx = self.root.winfo_rootx()
+            ry = self.root.winfo_rooty()
+            rw = self.root.winfo_width()
+            rh = self.root.winfo_height()
+
+            inside = (rx <= mx <= rx + rw) and (ry <= my <= ry + rh)
+
+            # VK_LBUTTON == 0x01. GetAsyncKeyState returns negative if down (high bit set).
+            lbutton = ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000
+
+            # If left button is down and cursor is outside our window, hide.
+            if lbutton and not inside:
+                try:
+                    self.hide_window()
+                except Exception:
+                    pass
+                return
+        except Exception:
+            # Ignore errors and continue polling
+            pass
+        finally:
+            try:
+                # keep polling while the window exists
+                if self.root and self.root.winfo_exists():
+                    self.root.after(100, self._outside_click_check)
+            except Exception:
+                pass
+
 
     def create_control_window(self):
         self.root = tk.Tk()
@@ -322,6 +376,11 @@ class MonitorController:
 
         self.position_near_tray()
         self.root.focus_force()
+        try:
+            # begin outside-click watcher
+            self.root.after(100, self._outside_click_check)
+        except Exception:
+            pass
 
     def on_monitor_select(self, event=None):
         sel = self.monitor_listbox.curselection()
