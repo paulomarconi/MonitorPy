@@ -276,6 +276,7 @@ class MonitorController:
         """Periodically check whether the user clicked outside the control window.
         If a left-button click occurs outside the window bounds, hide the window.
         Uses Win32 GetCursorPos and GetAsyncKeyState to detect clicks outside the app.
+        Also accounts for the edit presets window.
         """
         try:
             if not self.root or not self.root.winfo_exists() or self.root.state() == 'withdrawn':
@@ -298,10 +299,20 @@ class MonitorController:
 
             inside = (rx <= mx <= rx + rw) and (ry <= my <= ry + rh)
 
+            # Also check if click is inside the edit window
+            edit_win = getattr(self, 'edit_win', None)
+            if edit_win and edit_win.winfo_exists() and edit_win.state() != 'withdrawn':
+                ex = edit_win.winfo_rootx()
+                ey = edit_win.winfo_rooty()
+                ew = edit_win.winfo_width()
+                eh = edit_win.winfo_height()
+                inside_edit = (ex <= mx <= ex + ew) and (ey <= my <= ey + eh)
+                inside = inside or inside_edit
+
             # VK_LBUTTON == 0x01. GetAsyncKeyState returns negative if down (high bit set).
             lbutton = ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000
 
-            # If left button is down and cursor is outside our window, hide.
+            # If left button is down and cursor is outside both windows, hide.
             if lbutton and not inside:
                 try:
                     self.hide_window()
@@ -528,7 +539,6 @@ class MonitorController:
                 self.edit_win = None
         ttk.Button(btn_frame, text="Cancel", command=close_edit_window, width=len("Cancel")).pack(side=tk.RIGHT)
         edit_win.protocol("WM_DELETE_WINDOW", close_edit_window)
-        edit_win.grab_set()
         # Ensure main GUI is visible and positioned near tray so we can
         # place the editor window adjacent to it.
         try:
@@ -569,8 +579,6 @@ class MonitorController:
             edit_win.focus_force()
         except Exception:
             pass
-
-        edit_win.wait_window()
 
     def quit_app(self, icon=None, item=None):
         # Ensure quit runs on the Tk main thread when triggered from tray
