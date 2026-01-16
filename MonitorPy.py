@@ -205,11 +205,23 @@ class MonitorController:
     def create_image(self, width, height, color1, color2):
         image = Image.new('RGB', (width, height), color1)
         dc = ImageDraw.Draw(image)
-        dc.rectangle([2, 4, width-3, height-8], fill=color2, outline=color1, width=2)
-        dc.rectangle([4, 6, width-5, height-10], fill=color1, outline=color2)
-        indicator_color = color2 if self.monitor_connected else 'red'
-        dc.rectangle([6, 8, width-7, height-12], fill=indicator_color)
-        dc.rectangle([width//2-3, height-6, width//2+3, height-2], fill=color2)
+        # Draw monitor frame (white rectangle border)
+        frame_x1, frame_y1 = 0, 0
+        frame_x2, frame_y2 = width - 1, height - 1
+        dc.rectangle([frame_x1, frame_y1, frame_x2, frame_y2], fill=None, outline='white', width=3)
+        # Draw inner monitor bezel
+        bezel_x1, bezel_y1 = 2, 2
+        bezel_x2, bezel_y2 = width - 3, height - 3
+        dc.rectangle([bezel_x1, bezel_y1, bezel_x2, bezel_y2], fill=None, outline='white', width=1)
+        # Draw diagonally split rectangle - left side white, right side black
+        x1, y1 = 4, 4
+        x2, y2 = width - 5, height - 5
+        # Left/top-left triangle: white
+        dc.polygon([(x1, y1), (x2, y1), (x1, y2)], fill=color2)
+        # Right/bottom-right triangle: black
+        dc.polygon([(x2, y1), (x2, y2), (x1, y2)], fill=color1)
+        # Draw outline
+        dc.rectangle([x1, y1, x2, y2], fill=None, outline='white', width=1)
         return image
 
     def show_control_window(self, icon=None, item=None):
@@ -276,7 +288,7 @@ class MonitorController:
         """Periodically check whether the user clicked outside the control window.
         If a left-button click occurs outside the window bounds, hide the window.
         Uses Win32 GetCursorPos and GetAsyncKeyState to detect clicks outside the app.
-        Also accounts for the edit presets window.
+        Also accounts for the edit presets (Day and Night) window.
         """
         try:
             if not self.root or not self.root.winfo_exists() or self.root.state() == 'withdrawn':
