@@ -18,6 +18,7 @@ try:
     from monitorcontrol import get_monitors
 except ImportError:
     print("Please install monitorcontrol: pip install monitorcontrol")
+    messagebox.showerror("Missing Dependency", "Please install monitorcontrol: pip install monitorcontrol")
     sys.exit(1)
 
 class MonitorController:
@@ -39,6 +40,7 @@ class MonitorController:
     
     def discover_monitors(self):
         print("Discovering monitors...")
+        # messagebox.showinfo("Discovering Monitors", "Discovering monitors...")
         self.monitors = get_monitors()
         self.monitor_infos = []
         for i, monitor in enumerate(self.monitors):
