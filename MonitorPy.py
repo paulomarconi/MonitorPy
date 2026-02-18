@@ -586,7 +586,7 @@ class MonitorController:
         sliders_frame = ttk.Frame(main_frame)
         sliders_frame.pack(fill=tk.X, pady=8)
 
-        ttk.Label(sliders_frame, text="Brightness (Ctrl+F11/F10)", font=("Segoe UI", 8)).grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(sliders_frame, text="Brightness (Ctrl+F10/F11)", font=("Segoe UI", 8)).grid(row=0, column=0, sticky=tk.W)
         brightness_value = getattr(self, 'last_brightness', self.get_brightness())
         self.brightness_var = tk.IntVar(value=brightness_value)
         self.brightness_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.brightness_var,
@@ -595,7 +595,7 @@ class MonitorController:
         self.brightness_label = ttk.Label(sliders_frame, text=f"{self.brightness_var.get()}%")
         self.brightness_label.grid(row=2, column=0, sticky=tk.E)
 
-        ttk.Label(sliders_frame, text="Contrast (Shift+F11/F10)", font=("Segoe UI", 8)).grid(row=0, column=1, sticky=tk.W)
+        ttk.Label(sliders_frame, text="Contrast (Shift+F10/F11)", font=("Segoe UI", 8)).grid(row=0, column=1, sticky=tk.W)
         contrast_value = getattr(self, 'last_contrast', self.get_contrast())
         self.contrast_var = tk.IntVar(value=contrast_value)
         self.contrast_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.contrast_var,
@@ -824,7 +824,7 @@ class MonitorController:
         monitor_names = self.get_monitor_display_names()
         current_monitor_name = monitor_names[self.selected_monitor_index] if monitor_names else "No monitor"
         return pystray.Menu(
-            pystray.MenuItem("MonitorPy v1.0.1 | Site", lambda icon, item: self.open_download_link(), enabled=True),
+            pystray.MenuItem("MonitorPy v1.0.2 | Site", lambda icon, item: self.open_download_link(), enabled=True),
             pystray.MenuItem(f"Current Monitor: {current_monitor_name}", None, enabled=False),
             pystray.MenuItem("Show Controls", self.show_control_window, default=True),
             pystray.MenuItem("Edit Presets", lambda icon, item: self.open_edit_presets_window()),
