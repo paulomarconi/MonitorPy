@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 MonitorPy - Monitor Control System Tray Application for Windows 11/10
-Requires: pip install pystray pillow monitorcontrol pyinstaller
+Requires: pip install pystray pillow monitorcontrol pyinstaller 
 """
 
 import tkinter as tk
@@ -43,8 +43,10 @@ class MonitorController:
         # messagebox.showinfo("Discovering Monitors", "Discovering monitors...")
         self.monitors = get_monitors()
         self.monitor_infos = []
+        win32_manufacturers = self._get_monitor_manufacturers_win32com()
+        
         for i, monitor in enumerate(self.monitors):
-            info = {"monitor": monitor, "name": f"Monitor {i+1}", "brightness": 50, "contrast": 50}
+            info = {"monitor": monitor, "name": f"Monitor {i+1}", "brightness": 50, "contrast": 50, "manufacturer": None}
             try:
                 with monitor:
                     caps = monitor.get_vcp_capabilities()
@@ -54,12 +56,160 @@ class MonitorController:
                     info["contrast"] = monitor.get_contrast()
             except Exception:
                 info["name"] += " (No DDC/CI)"
+            
+            # Assign manufacturer from Registry if available
+            # Only use manufacturers list up to the number of actual monitors
+            if i < len(win32_manufacturers) and win32_manufacturers[i]:
+                info["manufacturer"] = win32_manufacturers[i]
+                print(f"Monitor {i}: {info['name']} -> {info['manufacturer']}")
+            
             self.monitor_infos.append(info)
         self.monitor = self.monitors[0] if self.monitors else None
         self.monitor_connected = bool(self.monitors)
         if self.monitor_infos:
             self.current_brightness = self.monitor_infos[0]["brightness"]
             self.current_contrast = self.monitor_infos[0]["contrast"]
+
+    def _get_monitor_manufacturers_win32com(self):
+        """Get monitor manufacturers using EDID data from Windows Registry."""
+        manufacturers = []
+        try:
+            import winreg
+            print("Reading monitor EDID data from Registry...")
+            
+            # Map of 3-letter manufacturer codes to full names
+            mfg_codes = {
+                'ACI': 'Asus', 'AOC': 'AOC', 'API': 'Acer', 'APP': 'Apple',
+                'AUO': 'AUOptronics', 'BNQ': 'BenQ', 'CMO': 'Chimei',
+                'CPQ': 'Compaq', 'DEL': 'Dell', 'DPC': 'Delta',
+                'DWD': 'Daewoo', 'EIZ': 'Eizo', 'ELS': 'Elsa',
+                'EMC': 'eMachines', 'ENC': 'Eizo', 'ENE': 'Eaton',
+                'EWD': 'Eizo', 'FUJ': 'Fujitsu', 'GSM': 'LG',
+                'HEC': 'Hectronic', 'HIT': 'Hitachi', 'HPN': 'HP',
+                'HSL': 'Hansol', 'HSJ': 'Hansol', 'HWP': 'HP', 'IBM': 'IBM',
+                'ICN': 'Incore', 'IDT': 'Idenitum', 'IFS': 'Infocus',
+                'ILK': 'Ilk', 'ITE': 'Itelvision', 'IVY': 'Iiyama',
+                'JVC': 'JVC', 'KFC': 'Kingfisher', 'KOE': 'Kaohsiung',
+                'KYE': 'Genius', 'LEN': 'Lenovo', 'LGD': 'LG Display',
+                'LHP': 'LG Philips', 'LPL': 'LG Philips', 'LSI': 'Lacie',
+                'MAG': 'Mag', 'MAX': 'Maxi', 'MEC': 'Mec',
+                'MEI': 'Panasonic', 'MIR': 'Miro', 'MIS': 'Mitsubishi',
+                'MON': 'Moniterm', 'MSI': 'MSI', 'MTO': 'Mitsubishi',
+                'NCI': 'NCR', 'NEC': 'NEC', 'NET': 'Netronix',
+                'NEW': 'Newvision', 'NLX': 'NLX', 'NOK': 'Nokia',
+                'NVD': 'Nvidia', 'NVI': 'Nvidia', 'OPT': 'Optoma',
+                'OQI': 'OPTIQUEST', 'ORN': 'Orion', 'OTC': 'Optec',
+                'OUI': 'Oui', 'PAC': 'Pac', 'PAR': 'Paragon',
+                'PBN': 'Philbin', 'PEG': 'Pegatron', 'PEL': 'Pelco',
+                'PHA': 'Photon', 'PHL': 'Philips', 'PHO': 'Photon',
+                'PKG': 'Procom', 'PLY': 'Polyester', 'PMM': 'Pamm',
+                'PRT': 'Proart', 'PSI': 'Protech', 'PTS': 'Protech',
+                'PUI': 'Princeton', 'PVI': 'Princeton', 'PVM': 'Panasonic',
+                'QDS': 'Quanta', 'REL': 'Relisys', 'REN': 'Renesas',
+                'REV': 'Revlon', 'RNT': 'Rentron', 'ROL': 'Rolex',
+                'RTK': 'Samsung', 'RTS': 'RTS', 'SAM': 'Samsung',
+                'SAT': 'Sanyo', 'SED': 'Sedar', 'SEI': 'Seiko',
+                'SEL': 'Seleco', 'SEM': 'Semantix', 'SEN': 'Sencore',
+                'SHP': 'Sharp', 'SIE': 'Siemens', 'SIG': 'Sigma',
+                'SKM': 'Skelm', 'SKY': 'Skyworth', 'SNI': 'Sansui',
+                'SNY': 'Sony', 'SOU': 'SOUNIQUE', 'SPT': 'Sceptre',
+                'SRC': 'Serica', 'STD': 'Std', 'STN': 'Satcom',
+                'STX': 'Streaming', 'SUN': 'Sun', 'SVO': 'Shinova',
+                'SYN': 'Synaptics', 'SYS': 'System', 'TAJ': 'Taj',
+                'TEC': 'Teconics', 'TEK': 'Tektronix', 'TEM': 'Tem',
+                'TEN': 'Tennics', 'TER': 'Terratec', 'TES': 'Tesis',
+                'TEX': 'Texaco', 'THE': 'Theben', 'THS': 'Thisware',
+                'THX': 'THX', 'TIC': 'Ticta', 'TIE': 'Tiernan',
+                'TIN': 'Tinnos', 'TIP': 'Tiptel', 'TIS': 'Tisys',
+                'TIV': 'Tiviewave', 'TOE': 'Toe', 'TOU': 'Touch',
+                'TRL': 'Tranquillity', 'TSB': 'Tsenso', 'TSN': 'Tseng',
+                'TST': 'Tensai', 'TWH': 'Taiwan', 'TYN': 'Tynamics',
+                'UBI': 'Ubisoft', 'UMC': 'Umcharacter', 'UMT': 'Unitech',
+                'UNI': 'Unipac', 'UPS': 'UPSHIFT', 'URD': 'Urdama',
+                'USA': 'USA', 'USB': 'USB', 'UTC': 'UTC',
+                'UTE': 'Utech', 'VAI': 'Vaio', 'VDT': 'Videoterm',
+                'VES': 'Vestel', 'VIT': 'Vitec', 'VIZ': 'Vizaudio',
+                'VLV': 'Velvision', 'VOB': 'VOBO', 'VOD': 'Vodacom',
+                'VON': 'Voni', 'VPC': 'VPC', 'VPI': 'Viper',
+                'VRN': 'Vernon', 'VUL': 'Vultron', 'WAY': 'Waytech',
+                'WDC': 'Western Digital', 'WEB': 'Webtronics', 'WEI': 'Wei',
+                'WET': 'Wetzel', 'WFD': 'Winfast', 'WFM': 'Winfirst',
+                'WHT': 'White', 'WIZ': 'Wizardry', 'WMC': 'Withc',
+                'WYS': 'Wyse', 'XAI': 'XAIRA', 'XER': 'Xerox',
+                'XIN': 'Xingbar', 'XON': 'Xonix', 'XOR': 'Xor',
+                'YAH': 'Yahoo', 'YAM': 'Yamaha', 'YES': 'Yesman',
+                'YMH': 'Yamaha', 'ZAP': 'Zaplight', 'ZEI': 'Zeitel',
+                'ZEN': 'Zenith', 'ZEO': 'Zeon', 'ZET': 'Zeta',
+                'ZGE': 'Zigote', 'ZTE': 'ZTE', 'ZXL': 'Zaxel',
+            }
+            
+            reg_path = r"SYSTEM\CurrentControlSet\Enum\DISPLAY"
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
+                display_count = 0
+                for i in range(winreg.QueryInfoKey(key)[0]):
+                    try:
+                        subkey_name = winreg.EnumKey(key, i)
+                        subkey = winreg.OpenKey(key, subkey_name)
+                        # EDID is in nested subkeys, enumerate them
+                        for j in range(winreg.QueryInfoKey(subkey)[0]):
+                            try:
+                                nested_name = winreg.EnumKey(subkey, j)
+                                nested_key = winreg.OpenKey(subkey, nested_name)
+                                # Try Device Parameters subkey
+                                try:
+                                    dev_params = winreg.OpenKey(nested_key, "Device Parameters")
+                                    edid_raw = winreg.QueryValueEx(dev_params, "EDID")[0]
+                                    display_count += 1
+                                    
+                                    if edid_raw and len(edid_raw) >= 10:
+                                        # EDID format: Manufacturer ID is at bytes 8-9 (0-indexed)
+                                        mfg_bytes = edid_raw[8:10]
+                                        mfg_code_int = (mfg_bytes[0] << 8) | mfg_bytes[1]
+                                        # Decode the 3-letter code
+                                        char1 = chr(64 + ((mfg_code_int >> 10) & 0x1F))
+                                        char2 = chr(64 + ((mfg_code_int >> 5) & 0x1F))
+                                        char3 = chr(64 + (mfg_code_int & 0x1F))
+                                        mfg_code = char1 + char2 + char3
+                                        mfg_name = mfg_codes.get(mfg_code, f"Unknown ({mfg_code})")
+                                        manufacturers.append(mfg_name)
+                                        print(f"Monitor {display_count}: {mfg_name} ({mfg_code})")
+                                    else:
+                                        manufacturers.append(None)
+                                    winreg.CloseKey(dev_params)
+                                except FileNotFoundError:
+                                    # Device Parameters subkey doesn't exist, try EDID directly
+                                    try:
+                                        edid_raw = winreg.QueryValueEx(nested_key, "EDID")[0]
+                                        display_count += 1
+                                        if edid_raw and len(edid_raw) >= 10:
+                                            mfg_bytes = edid_raw[8:10]
+                                            mfg_code_int = (mfg_bytes[0] << 8) | mfg_bytes[1]
+                                            char1 = chr(64 + ((mfg_code_int >> 10) & 0x1F))
+                                            char2 = chr(64 + ((mfg_code_int >> 5) & 0x1F))
+                                            char3 = chr(64 + (mfg_code_int & 0x1F))
+                                            mfg_code = char1 + char2 + char3
+                                            mfg_name = mfg_codes.get(mfg_code, f"Unknown ({mfg_code})")
+                                            manufacturers.append(mfg_name)
+                                            print(f"Monitor {display_count}: {mfg_name} ({mfg_code})")
+                                        else:
+                                            manufacturers.append(None)
+                                    except Exception:
+                                        pass
+                                winreg.CloseKey(nested_key)
+                            except Exception:
+                                pass
+                        winreg.CloseKey(subkey)
+                    except Exception:
+                        pass
+                winreg.CloseKey(key)
+            except Exception as e:
+                print(f"Registry access error: {e}")
+            
+            print(f"Total EDID manufacturers found: {len(manufacturers)}")
+        except Exception as e:
+            print(f"EDID parsing error: {e}")
+        return manufacturers
 
     # --- Autostart (Windows) support ---
     def _get_startup_paths(self):
@@ -176,8 +326,21 @@ class MonitorController:
                     pass
 
     def get_monitor_names(self):
+        """Get monitor names with optional manufacturer."""
         return [info["name"] for info in self.monitor_infos]
+    
+    def get_monitor_display_names(self):
+        """Get formatted monitor names with manufacturer info."""
+        names = []
+        for info in self.monitor_infos:
+            if info["manufacturer"]:
+                display_name = f"{info['manufacturer']} {info['name']}"
+            else:
+                display_name = info["name"]
+            names.append(display_name)
+        return names
 
+    # --- get/set brightness and contrast with error handling ---
     def get_brightness(self):
         return self.current_brightness
 
@@ -203,6 +366,48 @@ class MonitorController:
                 pass
         self.current_contrast = int(value)
         self.monitor_infos[self.selected_monitor_index]["contrast"] = int(value)
+
+    # --- Keyboard shortcut helpers for brightness and contrast ---
+    def _clamp(self, v, lo=0, hi=100):
+        try:
+            v = int(v)
+        except Exception:
+            return lo
+        return max(lo, min(hi, v))
+
+    def change_brightness_by(self, delta):
+        cur = self._clamp(self.get_brightness())
+        new = self._clamp(cur + int(delta))
+        self.set_brightness(new)
+        if self.brightness_var:
+            try:
+                self.brightness_var.set(new)
+                self.brightness_label.config(text=f"{new}%")
+            except Exception:
+                pass
+
+    def increase_brightness(self, event=None):
+        self.change_brightness_by(getattr(self, 'brightness_step', 5))
+
+    def decrease_brightness(self, event=None):
+        self.change_brightness_by(-getattr(self, 'brightness_step', 5))
+
+    def change_contrast_by(self, delta):
+        cur = self._clamp(self.get_contrast())
+        new = self._clamp(cur + int(delta))
+        self.set_contrast(new)
+        if self.contrast_var:
+            try:
+                self.contrast_var.set(new)
+                self.contrast_label.config(text=f"{new}%")
+            except Exception:
+                pass
+
+    def increase_contrast(self, event=None):
+        self.change_contrast_by(getattr(self, 'contrast_step', 5))
+
+    def decrease_contrast(self, event=None):
+        self.change_contrast_by(-getattr(self, 'contrast_step', 5))
 
     def create_image(self, width, height, color1, color2):
         image = Image.new('RGB', (width, height), color1)
@@ -348,7 +553,7 @@ class MonitorController:
     def create_control_window(self):
         self.root = tk.Tk()
         self.root.title("MonitorPy")
-        self.root.geometry("280x200")
+        self.root.geometry("320x200")
         self.root.resizable(False, False)
         self.root.attributes('-toolwindow', True)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
@@ -367,7 +572,7 @@ class MonitorController:
         ttk.Label(main_frame, text="Select Monitor").pack(anchor=tk.W)
         self.monitor_listbox = tk.Listbox(main_frame, height=3)
         self.monitor_listbox.pack(fill=tk.X, pady=3)
-        for i, name in enumerate(self.get_monitor_names()):
+        for i, name in enumerate(self.get_monitor_display_names()):
             self.monitor_listbox.insert(tk.END, name)
         self.monitor_listbox.bind("<<ListboxSelect>>", self.on_monitor_select)
 
@@ -381,26 +586,36 @@ class MonitorController:
         sliders_frame = ttk.Frame(main_frame)
         sliders_frame.pack(fill=tk.X, pady=8)
 
-        ttk.Label(sliders_frame, text="Brightness").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(sliders_frame, text="Brightness (Ctrl+F11/F10)", font=("Segoe UI", 8)).grid(row=0, column=0, sticky=tk.W)
         brightness_value = getattr(self, 'last_brightness', self.get_brightness())
         self.brightness_var = tk.IntVar(value=brightness_value)
         self.brightness_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.brightness_var,
-                                      command=self.on_brightness_change, orient=tk.HORIZONTAL, length=120)
+                                      command=self.on_brightness_change, orient=tk.HORIZONTAL, length=140)
         self.brightness_scale.grid(row=1, column=0, padx=(0,10))
         self.brightness_label = ttk.Label(sliders_frame, text=f"{self.brightness_var.get()}%")
         self.brightness_label.grid(row=2, column=0, sticky=tk.E)
 
-        ttk.Label(sliders_frame, text="Contrast").grid(row=0, column=1, sticky=tk.W)
+        ttk.Label(sliders_frame, text="Contrast (Shift+F11/F10)", font=("Segoe UI", 8)).grid(row=0, column=1, sticky=tk.W)
         contrast_value = getattr(self, 'last_contrast', self.get_contrast())
         self.contrast_var = tk.IntVar(value=contrast_value)
         self.contrast_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.contrast_var,
-                                    command=self.on_contrast_change, orient=tk.HORIZONTAL, length=120)
-        self.contrast_scale.grid(row=1, column=1, padx=(10,0))
+                                    command=self.on_contrast_change, orient=tk.HORIZONTAL, length=140)
+        self.contrast_scale.grid(row=1, column=1, padx=(0,10))
         self.contrast_label = ttk.Label(sliders_frame, text=f"{self.contrast_var.get()}%")
         self.contrast_label.grid(row=2, column=1, sticky=tk.E)
 
         self.position_near_tray()
         self.root.focus_force()
+        # keyboard shortcut defaults and bindings
+        self.brightness_step = getattr(self, 'brightness_step', 5)
+        self.contrast_step = getattr(self, 'contrast_step', 5)
+        try:
+            self.root.bind_all('<Control-F11>', self.increase_brightness)
+            self.root.bind_all('<Control-F10>', self.decrease_brightness)
+            self.root.bind_all('<Shift-F11>', self.increase_contrast)
+            self.root.bind_all('<Shift-F10>', self.decrease_contrast)
+        except Exception:
+            pass
         try:
             # begin outside-click watcher
             self.root.after(100, self._outside_click_check)
@@ -606,7 +821,7 @@ class MonitorController:
             self.tray_icon.stop()
 
     def create_tray_menu(self):
-        monitor_names = self.get_monitor_names()
+        monitor_names = self.get_monitor_display_names()
         current_monitor_name = monitor_names[self.selected_monitor_index] if monitor_names else "No monitor"
         return pystray.Menu(
             pystray.MenuItem("MonitorPy v1.0.1 | Site", lambda icon, item: self.open_download_link(), enabled=True),
