@@ -2,3 +2,5 @@ pystray
 pillow 
 monitorcontrol 
 pyinstaller
+sv-ttk
+darkdetect

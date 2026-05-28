@@ -11,8 +11,81 @@ from PIL import Image, ImageDraw
 import threading
 import sys
 import os
+import json
 from pathlib import Path
 import time
+
+try:
+    import sv_ttk
+    import darkdetect
+except ImportError:
+    sv_ttk = None
+    darkdetect = None
+
+MFG_CODES = {
+    'ACI': 'Asus', 'AOC': 'AOC', 'API': 'Acer', 'APP': 'Apple',
+    'AUO': 'AUOptronics', 'BNQ': 'BenQ', 'CMO': 'Chimei',
+    'CPQ': 'Compaq', 'DEL': 'Dell', 'DPC': 'Delta',
+    'DWD': 'Daewoo', 'EIZ': 'Eizo', 'ELS': 'Elsa',
+    'EMC': 'eMachines', 'ENC': 'Eizo', 'ENE': 'Eaton',
+    'EWD': 'Eizo', 'FUJ': 'Fujitsu', 'GSM': 'LG',
+    'HEC': 'Hectronic', 'HIT': 'Hitachi', 'HPN': 'HP',
+    'HSL': 'Hansol', 'HSJ': 'Hansol', 'HWP': 'HP', 'IBM': 'IBM',
+    'ICN': 'Incore', 'IDT': 'Idenitum', 'IFS': 'Infocus',
+    'ILK': 'Ilk', 'ITE': 'Itelvision', 'IVY': 'Iiyama',
+    'JVC': 'JVC', 'KFC': 'Kingfisher', 'KOE': 'Kaohsiung',
+    'KYE': 'Genius', 'LEN': 'Lenovo', 'LGD': 'LG Display',
+    'LHP': 'LG Philips', 'LPL': 'LG Philips', 'LSI': 'Lacie',
+    'MAG': 'Mag', 'MAX': 'Maxi', 'MEC': 'Mec',
+    'MEI': 'Panasonic', 'MIR': 'Miro', 'MIS': 'Mitsubishi',
+    'MON': 'Moniterm', 'MSI': 'MSI', 'MTO': 'Mitsubishi',
+    'NCI': 'NCR', 'NEC': 'NEC', 'NET': 'Netronix',
+    'NEW': 'Newvision', 'NLX': 'NLX', 'NOK': 'Nokia',
+    'NVD': 'Nvidia', 'NVI': 'Nvidia', 'OPT': 'Optoma',
+    'OQI': 'OPTIQUEST', 'ORN': 'Orion', 'OTC': 'Optec',
+    'OUI': 'Oui', 'PAC': 'Pac', 'PAR': 'Paragon',
+    'PBN': 'Philbin', 'PEG': 'Pegatron', 'PEL': 'Pelco',
+    'PHA': 'Photon', 'PHL': 'Philips', 'PHO': 'Photon',
+    'PKG': 'Procom', 'PLY': 'Polyester', 'PMM': 'Pamm',
+    'PRT': 'Proart', 'PSI': 'Protech', 'PTS': 'Protech',
+    'PUI': 'Princeton', 'PVI': 'Princeton', 'PVM': 'Panasonic',
+    'QDS': 'Quanta', 'REL': 'Relisys', 'REN': 'Renesas',
+    'REV': 'Revlon', 'RNT': 'Rentron', 'ROL': 'Rolex',
+    'RTK': 'Samsung', 'RTS': 'RTS', 'SAM': 'Samsung',
+    'SAT': 'Sanyo', 'SED': 'Sedar', 'SEI': 'Seiko',
+    'SEL': 'Seleco', 'SEM': 'Semantix', 'SEN': 'Sencore',
+    'SHP': 'Sharp', 'SIE': 'Siemens', 'SIG': 'Sigma',
+    'SKM': 'Skelm', 'SKY': 'Skyworth', 'SNI': 'Sansui',
+    'SNY': 'Sony', 'SOU': 'SOUNIQUE', 'SPT': 'Sceptre',
+    'SRC': 'Serica', 'STD': 'Std', 'STN': 'Satcom',
+    'STX': 'Streaming', 'SUN': 'Sun', 'SVO': 'Shinova',
+    'SYN': 'Synaptics', 'SYS': 'System', 'TAJ': 'Taj',
+    'TEC': 'Teconics', 'TEK': 'Tektronix', 'TEM': 'Tem',
+    'TEN': 'Tennics', 'TER': 'Terratec', 'TES': 'Tesis',
+    'TEX': 'Texaco', 'THE': 'Theben', 'THS': 'Thisware',
+    'THX': 'THX', 'TIC': 'Ticta', 'TIE': 'Tiernan',
+    'TIN': 'Tinnos', 'TIP': 'Tiptel', 'TIS': 'Tisys',
+    'TIV': 'Tiviewave', 'TOE': 'Toe', 'TOU': 'Touch',
+    'TRL': 'Tranquillity', 'TSB': 'Tsenso', 'TSN': 'Tseng',
+    'TST': 'Tensai', 'TWH': 'Taiwan', 'TYN': 'Tynamics',
+    'UBI': 'Ubisoft', 'UMC': 'Umcharacter', 'UMT': 'Unitech',
+    'UNI': 'Unipac', 'UPS': 'UPSHIFT', 'URD': 'Urdama',
+    'USA': 'USA', 'USB': 'USB', 'UTC': 'UTC',
+    'UTE': 'Utech', 'VAI': 'Vaio', 'VDT': 'Videoterm',
+    'VES': 'Vestel', 'VIT': 'Vitec', 'VIZ': 'Vizaudio',
+    'VLV': 'Velvision', 'VOB': 'VOBO', 'VOD': 'Vodacom',
+    'VON': 'Voni', 'VPC': 'VPC', 'VPI': 'Viper',
+    'VRN': 'Vernon', 'VUL': 'Vultron', 'WAY': 'Waytech',
+    'WDC': 'Western Digital', 'WEB': 'Webtronics', 'WEI': 'Wei',
+    'WET': 'Wetzel', 'WFD': 'Winfast', 'WFM': 'Winfirst',
+    'WHT': 'White', 'WIZ': 'Wizardry', 'WMC': 'Withc',
+    'WYS': 'Wyse', 'XAI': 'XAIRA', 'XER': 'Xerox',
+    'XIN': 'Xingbar', 'XON': 'Xonix', 'XOR': 'Xor',
+    'YAH': 'Yahoo', 'YAM': 'Yamaha', 'YES': 'Yesman',
+    'YMH': 'Yamaha', 'ZAP': 'Zaplight', 'ZEI': 'Zeitel',
+    'ZEN': 'Zenith', 'ZEO': 'Zeon', 'ZET': 'Zeta',
+    'ZGE': 'Zigote', 'ZTE': 'ZTE', 'ZXL': 'Zaxel',
+}
 
 try:
     from monitorcontrol import get_monitors
@@ -35,6 +108,8 @@ class MonitorController:
         self.selected_monitor_index = 0
         self.preset_1 = {"brightness": 100, "contrast": 70}
         self.preset_2 = {"brightness": 30, "contrast": 50}
+        self.theme = "system"
+        self.load_presets()
 
         self.discover_monitors()
     
@@ -70,78 +145,74 @@ class MonitorController:
             self.current_brightness = self.monitor_infos[0]["brightness"]
             self.current_contrast = self.monitor_infos[0]["contrast"]
 
+    def get_config_path(self):
+        appdata = os.environ.get('APPDATA')
+        if appdata:
+            config_dir = os.path.join(appdata, "MonitorPy")
+            os.makedirs(config_dir, exist_ok=True)
+            return os.path.join(config_dir, "presets.json")
+        return "presets.json"
+
+    def load_presets(self):
+        config_file = self.get_config_path()
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, "r") as f:
+                    data = json.load(f)
+                    if "preset_1" in data:
+                        self.preset_1.update(data["preset_1"])
+                    if "preset_2" in data:
+                        self.preset_2.update(data["preset_2"])
+                    if "theme" in data:
+                        self.theme = data["theme"]
+            except Exception as e:
+                print(f"Failed to load presets: {e}")
+
+    def save_presets_to_file(self):
+        config_file = self.get_config_path()
+        try:
+            with open(config_file, "w") as f:
+                json.dump({"preset_1": self.preset_1, "preset_2": self.preset_2, "theme": self.theme}, f)
+        except Exception as e:
+            print(f"Failed to save presets: {e}")
+
+    def apply_theme(self, theme_name=None):
+        if not sv_ttk:
+            return
+        if theme_name is None:
+            theme_name = self.theme
+        
+        target_theme = theme_name
+        if target_theme == "system" and darkdetect:
+            target_theme = darkdetect.theme().lower()
+            
+        if target_theme not in ["dark", "light"]:
+            target_theme = "dark"
+            
+        try:
+            sv_ttk.set_theme(target_theme)
+        except Exception as e:
+            print(f"Failed to apply theme: {e}")
+
+    def change_theme(self, theme_name):
+        self.theme = theme_name
+        self.save_presets_to_file()
+        if self.root and threading.current_thread() is not threading.main_thread():
+            self.root.after(0, lambda: self.apply_theme(theme_name))
+        else:
+            self.apply_theme(theme_name)
+        if self.tray_icon:
+            try:
+                self.tray_icon.menu = self.create_tray_menu()
+            except Exception:
+                pass
+
     def _get_monitor_manufacturers_win32com(self):
         """Get monitor manufacturers using EDID data from Windows Registry."""
         manufacturers = []
         try:
             import winreg
             print("Reading monitor EDID data from Registry...")
-            
-            # Map of 3-letter manufacturer codes to full names
-            mfg_codes = {
-                'ACI': 'Asus', 'AOC': 'AOC', 'API': 'Acer', 'APP': 'Apple',
-                'AUO': 'AUOptronics', 'BNQ': 'BenQ', 'CMO': 'Chimei',
-                'CPQ': 'Compaq', 'DEL': 'Dell', 'DPC': 'Delta',
-                'DWD': 'Daewoo', 'EIZ': 'Eizo', 'ELS': 'Elsa',
-                'EMC': 'eMachines', 'ENC': 'Eizo', 'ENE': 'Eaton',
-                'EWD': 'Eizo', 'FUJ': 'Fujitsu', 'GSM': 'LG',
-                'HEC': 'Hectronic', 'HIT': 'Hitachi', 'HPN': 'HP',
-                'HSL': 'Hansol', 'HSJ': 'Hansol', 'HWP': 'HP', 'IBM': 'IBM',
-                'ICN': 'Incore', 'IDT': 'Idenitum', 'IFS': 'Infocus',
-                'ILK': 'Ilk', 'ITE': 'Itelvision', 'IVY': 'Iiyama',
-                'JVC': 'JVC', 'KFC': 'Kingfisher', 'KOE': 'Kaohsiung',
-                'KYE': 'Genius', 'LEN': 'Lenovo', 'LGD': 'LG Display',
-                'LHP': 'LG Philips', 'LPL': 'LG Philips', 'LSI': 'Lacie',
-                'MAG': 'Mag', 'MAX': 'Maxi', 'MEC': 'Mec',
-                'MEI': 'Panasonic', 'MIR': 'Miro', 'MIS': 'Mitsubishi',
-                'MON': 'Moniterm', 'MSI': 'MSI', 'MTO': 'Mitsubishi',
-                'NCI': 'NCR', 'NEC': 'NEC', 'NET': 'Netronix',
-                'NEW': 'Newvision', 'NLX': 'NLX', 'NOK': 'Nokia',
-                'NVD': 'Nvidia', 'NVI': 'Nvidia', 'OPT': 'Optoma',
-                'OQI': 'OPTIQUEST', 'ORN': 'Orion', 'OTC': 'Optec',
-                'OUI': 'Oui', 'PAC': 'Pac', 'PAR': 'Paragon',
-                'PBN': 'Philbin', 'PEG': 'Pegatron', 'PEL': 'Pelco',
-                'PHA': 'Photon', 'PHL': 'Philips', 'PHO': 'Photon',
-                'PKG': 'Procom', 'PLY': 'Polyester', 'PMM': 'Pamm',
-                'PRT': 'Proart', 'PSI': 'Protech', 'PTS': 'Protech',
-                'PUI': 'Princeton', 'PVI': 'Princeton', 'PVM': 'Panasonic',
-                'QDS': 'Quanta', 'REL': 'Relisys', 'REN': 'Renesas',
-                'REV': 'Revlon', 'RNT': 'Rentron', 'ROL': 'Rolex',
-                'RTK': 'Samsung', 'RTS': 'RTS', 'SAM': 'Samsung',
-                'SAT': 'Sanyo', 'SED': 'Sedar', 'SEI': 'Seiko',
-                'SEL': 'Seleco', 'SEM': 'Semantix', 'SEN': 'Sencore',
-                'SHP': 'Sharp', 'SIE': 'Siemens', 'SIG': 'Sigma',
-                'SKM': 'Skelm', 'SKY': 'Skyworth', 'SNI': 'Sansui',
-                'SNY': 'Sony', 'SOU': 'SOUNIQUE', 'SPT': 'Sceptre',
-                'SRC': 'Serica', 'STD': 'Std', 'STN': 'Satcom',
-                'STX': 'Streaming', 'SUN': 'Sun', 'SVO': 'Shinova',
-                'SYN': 'Synaptics', 'SYS': 'System', 'TAJ': 'Taj',
-                'TEC': 'Teconics', 'TEK': 'Tektronix', 'TEM': 'Tem',
-                'TEN': 'Tennics', 'TER': 'Terratec', 'TES': 'Tesis',
-                'TEX': 'Texaco', 'THE': 'Theben', 'THS': 'Thisware',
-                'THX': 'THX', 'TIC': 'Ticta', 'TIE': 'Tiernan',
-                'TIN': 'Tinnos', 'TIP': 'Tiptel', 'TIS': 'Tisys',
-                'TIV': 'Tiviewave', 'TOE': 'Toe', 'TOU': 'Touch',
-                'TRL': 'Tranquillity', 'TSB': 'Tsenso', 'TSN': 'Tseng',
-                'TST': 'Tensai', 'TWH': 'Taiwan', 'TYN': 'Tynamics',
-                'UBI': 'Ubisoft', 'UMC': 'Umcharacter', 'UMT': 'Unitech',
-                'UNI': 'Unipac', 'UPS': 'UPSHIFT', 'URD': 'Urdama',
-                'USA': 'USA', 'USB': 'USB', 'UTC': 'UTC',
-                'UTE': 'Utech', 'VAI': 'Vaio', 'VDT': 'Videoterm',
-                'VES': 'Vestel', 'VIT': 'Vitec', 'VIZ': 'Vizaudio',
-                'VLV': 'Velvision', 'VOB': 'VOBO', 'VOD': 'Vodacom',
-                'VON': 'Voni', 'VPC': 'VPC', 'VPI': 'Viper',
-                'VRN': 'Vernon', 'VUL': 'Vultron', 'WAY': 'Waytech',
-                'WDC': 'Western Digital', 'WEB': 'Webtronics', 'WEI': 'Wei',
-                'WET': 'Wetzel', 'WFD': 'Winfast', 'WFM': 'Winfirst',
-                'WHT': 'White', 'WIZ': 'Wizardry', 'WMC': 'Withc',
-                'WYS': 'Wyse', 'XAI': 'XAIRA', 'XER': 'Xerox',
-                'XIN': 'Xingbar', 'XON': 'Xonix', 'XOR': 'Xor',
-                'YAH': 'Yahoo', 'YAM': 'Yamaha', 'YES': 'Yesman',
-                'YMH': 'Yamaha', 'ZAP': 'Zaplight', 'ZEI': 'Zeitel',
-                'ZEN': 'Zenith', 'ZEO': 'Zeon', 'ZET': 'Zeta',
-                'ZGE': 'Zigote', 'ZTE': 'ZTE', 'ZXL': 'Zaxel',
-            }
             
             reg_path = r"SYSTEM\CurrentControlSet\Enum\DISPLAY"
             try:
@@ -171,7 +242,7 @@ class MonitorController:
                                         char2 = chr(64 + ((mfg_code_int >> 5) & 0x1F))
                                         char3 = chr(64 + (mfg_code_int & 0x1F))
                                         mfg_code = char1 + char2 + char3
-                                        mfg_name = mfg_codes.get(mfg_code, f"Unknown ({mfg_code})")
+                                        mfg_name = MFG_CODES.get(mfg_code, f"Unknown ({mfg_code})")
                                         manufacturers.append(mfg_name)
                                         print(f"Monitor {display_count}: {mfg_name} ({mfg_code})")
                                     else:
@@ -189,7 +260,7 @@ class MonitorController:
                                             char2 = chr(64 + ((mfg_code_int >> 5) & 0x1F))
                                             char3 = chr(64 + (mfg_code_int & 0x1F))
                                             mfg_code = char1 + char2 + char3
-                                            mfg_name = mfg_codes.get(mfg_code, f"Unknown ({mfg_code})")
+                                            mfg_name = MFG_CODES.get(mfg_code, f"Unknown ({mfg_code})")
                                             manufacturers.append(mfg_name)
                                             print(f"Monitor {display_count}: {mfg_name} ({mfg_code})")
                                         else:
@@ -558,6 +629,7 @@ class MonitorController:
         self.root.attributes('-toolwindow', True)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
         self.root.overrideredirect(True)
+        self.apply_theme()
 
         main_frame = ttk.Frame(self.root, padding="8")
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -590,8 +662,10 @@ class MonitorController:
         brightness_value = getattr(self, 'last_brightness', self.get_brightness())
         self.brightness_var = tk.IntVar(value=brightness_value)
         self.brightness_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.brightness_var,
-                                      command=self.on_brightness_change, orient=tk.HORIZONTAL, length=140)
+                                      command=self.update_brightness_label, orient=tk.HORIZONTAL, length=140)
         self.brightness_scale.grid(row=1, column=0, padx=(0,10))
+        self.brightness_scale.bind("<ButtonRelease-1>", self.on_brightness_release)
+        self.brightness_scale.bind("<KeyRelease>", self.on_brightness_release)
         self.brightness_label = ttk.Label(sliders_frame, text=f"{self.brightness_var.get()}%")
         self.brightness_label.grid(row=2, column=0, sticky=tk.E)
 
@@ -599,8 +673,10 @@ class MonitorController:
         contrast_value = getattr(self, 'last_contrast', self.get_contrast())
         self.contrast_var = tk.IntVar(value=contrast_value)
         self.contrast_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.contrast_var,
-                                    command=self.on_contrast_change, orient=tk.HORIZONTAL, length=140)
+                                    command=self.update_contrast_label, orient=tk.HORIZONTAL, length=140)
         self.contrast_scale.grid(row=1, column=1, padx=(0,10))
+        self.contrast_scale.bind("<ButtonRelease-1>", self.on_contrast_release)
+        self.contrast_scale.bind("<KeyRelease>", self.on_contrast_release)
         self.contrast_label = ttk.Label(sliders_frame, text=f"{self.contrast_var.get()}%")
         self.contrast_label.grid(row=2, column=1, sticky=tk.E)
 
@@ -640,15 +716,19 @@ class MonitorController:
         self.contrast_var.set(self.get_contrast())
         self.contrast_label.config(text=f"{self.contrast_var.get()}%")
 
-    def on_brightness_change(self, value):
-        if self.monitor:
-            self.set_brightness(int(float(value)))
-            self.brightness_label.config(text=f"{int(float(value))}%")
+    def update_brightness_label(self, value):
+        self.brightness_label.config(text=f"{int(float(value))}%")
 
-    def on_contrast_change(self, value):
+    def on_brightness_release(self, event=None):
         if self.monitor:
-            self.set_contrast(int(float(value)))
-            self.contrast_label.config(text=f"{int(float(value))}%")
+            self.set_brightness(self.brightness_var.get())
+
+    def update_contrast_label(self, value):
+        self.contrast_label.config(text=f"{int(float(value))}%")
+
+    def on_contrast_release(self, event=None):
+        if self.monitor:
+            self.set_contrast(self.contrast_var.get())
 
     def open_download_link(self):
         import webbrowser
@@ -751,6 +831,7 @@ class MonitorController:
             self.preset_1["contrast"] = rc
             self.preset_2["brightness"] = pb
             self.preset_2["contrast"] = pc
+            self.save_presets_to_file()
             # Update controls if visible
             if self.brightness_var:
                 self.brightness_label.config(text=f"{self.brightness_var.get()}%")
@@ -823,13 +904,21 @@ class MonitorController:
     def create_tray_menu(self):
         monitor_names = self.get_monitor_display_names()
         current_monitor_name = monitor_names[self.selected_monitor_index] if monitor_names else "No monitor"
+        
+        theme_menu = pystray.Menu(
+            pystray.MenuItem("Light", lambda icon, item: self.change_theme("light"), checked=lambda item: self.theme == "light", radio=True),
+            pystray.MenuItem("Dark", lambda icon, item: self.change_theme("dark"), checked=lambda item: self.theme == "dark", radio=True),
+            pystray.MenuItem("System Default", lambda icon, item: self.change_theme("system"), checked=lambda item: self.theme == "system", radio=True)
+        )
+        
         return pystray.Menu(
-            pystray.MenuItem("MonitorPy v1.0.2 | Site", lambda icon, item: self.open_download_link(), enabled=True),
+            pystray.MenuItem("MonitorPy v1.0.3 | Site", lambda icon, item: self.open_download_link(), enabled=True),
             pystray.MenuItem(f"Current Monitor: {current_monitor_name}", None, enabled=False),
             pystray.MenuItem("Show Controls", self.show_control_window, default=True),
             pystray.MenuItem("Edit Presets", lambda icon, item: self.open_edit_presets_window()),
             pystray.MenuItem("Day", self.quick_preset_1),
             pystray.MenuItem("Night", self.quick_preset_2),
+            pystray.MenuItem("Theme", theme_menu),
             pystray.MenuItem(
                 "Autostart on Windows startup",
                 lambda icon, item: self.toggle_autostart(),

@@ -55,6 +55,7 @@ The following dependencies are used only if you run `Monitory.py` or build the s
 - The app discovers all connected monitors supporting DDC/CI.
 - You can select a monitor and adjust its brightness and contrast using sliders, and presets.
 - The tray icon provides quick access to show controls, presets and edit presets values, autostar and exit.
+- Supports modern Light and Dark mode themes (with System Default sync) via the tray menu.
   
 ## Troubleshooting
 
