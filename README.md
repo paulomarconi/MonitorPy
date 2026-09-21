@@ -16,6 +16,10 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 - System tray icon with quick access menu.
 - Select between multiple monitors.
 - Edit Presets for brightness and contrast.
+- Global hotkeys (work from any application, even when the window is hidden):
+  - `Ctrl+F10` / `Ctrl+F11`: brightness down / up
+  - `Alt+F10` / `Alt+F11`: contrast down / up
+  - If another program already uses one of these keys, MonitorPy tells you at startup.
 - Autostart on Windows startup option.
 - Lightweight and easy to use.
 
