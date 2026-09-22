@@ -14,7 +14,7 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 
 - Adjust brightness and contrast for connected monitors.
 - System tray icon with quick access menu.
-- Select between multiple monitors.
+- Select between multiple monitors. Plugged or unplugged a monitor? Use **Refresh monitors** in the tray menu (it also refreshes by itself the next time you open the window).
 - Edit Presets for brightness and contrast.
 - Global hotkeys (work from any application, even when the window is hidden):
   - `Ctrl+F10` / `Ctrl+F11`: brightness down / up
@@ -27,12 +27,14 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 
 - Python 3.8+
 
-The following dependencies are used only if you run `Monitory.py` or build the standalone executable.
+The following dependencies are used only if you run `MonitorPy.py` or build the standalone executable.
 
 - [monitorcontrol](https://pypi.org/project/monitorcontrol/)
 - [pystray](https://pypi.org/project/pystray/)
 - [pillow](https://pypi.org/project/Pillow/)
 - [pyinstaller](https://pypi.org/project/pyinstaller/)
+- [sv-ttk](https://pypi.org/project/sv-ttk/) and [darkdetect](https://pypi.org/project/darkdetect/) for the Light/Dark themes
+- [pytest](https://pypi.org/project/pytest/), only needed to run the test suite (see [Development](#development))
 
 ## Usage
 
@@ -61,6 +63,29 @@ The following dependencies are used only if you run `Monitory.py` or build the s
 - The tray icon provides quick access to show controls, presets and edit presets values, autostar and exit.
 - Supports modern Light and Dark mode themes (with System Default sync) via the tray menu.
   
+## Development
+
+The code lives in the `monitorpy/` package (`MonitorPy.py` is just the entry point); `tests/` holds a pytest suite covering it.
+
+```sh
+pip install -r requirements.txt
+pytest
+```
+
+Most tests use a fake monitor and never touch real hardware or your actual `%APPDATA%`. A few, marked `hardware`, exercise whatever monitors are actually connected and skip themselves cleanly if none are found or if a check doesn't apply:
+
+```sh
+pytest -m "not hardware"   # skip the ones that need real monitors
+pytest -m hardware         # only those
+```
+
+## Settings and logs
+
+Both live in `%APPDATA%\MonitorPy\`:
+
+- `config.json`: your Day/Night presets and theme. Older versions used `presets.json`; it is migrated automatically. If the file is ever corrupt, MonitorPy starts with defaults and keeps the broken file as `config.json.bad`.
+- `monitorpy.log`: diagnostic log (rotates at 256 KB). Attach it when reporting a problem.
+
 ## Troubleshooting
 
 - If you see "No DDC/CI" next to a monitor, it means the monitor does not support DDC/CI or is not detected.
