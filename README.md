@@ -56,6 +56,14 @@ The following dependencies are used only if you run `MonitorPy.py` or build the 
     pyinstaller MonitorPy.spec
     ```
 
+- To push a new tag version and upload the `MonitorPy.exe` to Releases:
+
+    ```sh
+    git tag v1.0.4
+    git push origin v1.0.4
+    gh release create v1.0.4 dist/MonitorPy.exe --title "v1.0.4" --notes "your notes"
+    ```
+
 ## How it works
 
 - The app discovers all connected monitors supporting DDC/CI.
