@@ -23,7 +23,7 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 - Autostart on Windows startup option.
 - Lightweight and easy to use.
 
-## Requirements
+## Requirements 
 
 - Python 3.8+
 
