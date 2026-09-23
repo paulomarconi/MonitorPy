@@ -272,6 +272,15 @@ def test_old_monitor_objects_are_released_after_a_refresh(controller, fake_monit
 
 # --------------------------------------------------------------------------------- UI details
 
+def test_system_theme_falls_back_when_windows_reports_none(controller, monkeypatch):
+    from monitorpy import controller as controller_module
+    if controller_module.darkdetect is None or controller_module.sv_ttk is None:
+        pytest.skip("theme libraries not installed")
+    monkeypatch.setattr(controller_module.darkdetect, "theme", lambda: None)
+    controller.apply_theme("system")  # must not raise
+    assert controller_module.sv_ttk.get_theme() == "dark"
+
+
 def test_listbox_keeps_selection_when_focus_moves_to_an_entry(controller):
     controller.monitor_listbox.insert("end", "A")
     controller.monitor_listbox.insert("end", "B")

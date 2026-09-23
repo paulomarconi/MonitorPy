@@ -190,7 +190,9 @@ class MonitorController:
 
         target_theme = theme_name
         if target_theme == "system" and darkdetect:
-            target_theme = darkdetect.theme().lower()
+            # theme() returns None when Windows exposes no app theme setting
+            # (e.g. Windows Server, CI runners); fall through to the default.
+            target_theme = (darkdetect.theme() or "").lower()
 
         if target_theme not in ["dark", "light"]:
             target_theme = "dark"
