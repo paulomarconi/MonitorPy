@@ -5,7 +5,7 @@ a = Analysis(
     ['MonitorPy.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('MonitorPy.ico', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['MonitorPy.ico'],
 )

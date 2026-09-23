@@ -12,7 +12,7 @@ from monitorpy import autostart
 from monitorpy.config import ConfigStore
 from monitorpy.ddc import DdcWorker, probe_monitors
 from monitorpy.hotkeys import HOTKEYS, HotkeyListener
-from monitorpy.icon import create_tray_icon_image
+from monitorpy.icon import load_tray_icon_image
 from monitorpy.logutil import log
 from monitorpy.monitors import get_display_signature, get_monitor_manufacturers
 
@@ -761,7 +761,7 @@ class MonitorController:
         self.apply_preset(self.config.preset_2)
 
     def run(self):
-        icon_image = create_tray_icon_image(64, 64, 'black', 'white')
+        icon_image = load_tray_icon_image(128)
         self.tray_icon = pystray.Icon(
             "monitor_control",
             icon_image,
