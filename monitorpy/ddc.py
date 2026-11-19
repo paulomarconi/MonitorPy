@@ -28,7 +28,9 @@ def probe_monitors(get_monitors_fn, get_manufacturers_fn):
     infos = []
     for i, monitor in enumerate(monitors):
         info = {"monitor": monitor, "name": f"Monitor {i+1}", "brightness": 50, "contrast": 50,
-                "manufacturer": manufacturers[i], "supported": {}}
+                "manufacturer": manufacturers[i],
+                # Until a read succeeds (stays False if the DDC/CI session cannot even be opened).
+                "supported": {"brightness": False, "contrast": False}}
         # Read each feature in its own transaction: a monitor that cannot report one
         # (many do not support contrast, or return no capabilities string) may still
         # work for the others.

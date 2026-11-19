@@ -67,3 +67,65 @@ def test_double_enable_and_double_disable_are_idempotent():
     assert autostart.enable() is True
     assert autostart.disable() is True
     assert autostart.disable() is True
+
+
+# ------------------------------------------------------------------ repairing a stale entry
+
+def _write_run_value(command):
+    import winreg
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, autostart.RUN_KEY) as key:
+        winreg.SetValueEx(key, autostart.RUN_VALUE, 0, winreg.REG_SZ, command)
+
+
+def _read_run_value():
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, autostart.RUN_KEY) as key:
+        return winreg.QueryValueEx(key, autostart.RUN_VALUE)[0]
+
+
+@pytest.fixture
+def frozen_exe(tmp_path, monkeypatch):
+    """Pretend to be the PyInstaller exe, running from tmp_path/new/MonitorPy.exe."""
+    exe = tmp_path / "new" / "MonitorPy.exe"
+    exe.parent.mkdir()
+    exe.write_bytes(b"")
+    monkeypatch.setattr(autostart.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(autostart.sys, "executable", str(exe))
+    return exe
+
+
+@pytest.mark.parametrize("command, target", [
+    (r'"C:\Some Dir\MonitorPy.exe"', r"C:\Some Dir\MonitorPy.exe"),
+    (r'"C:\py\pythonw.exe" "C:\x\MonitorPy.py"', r"C:\py\pythonw.exe"),
+    (r"C:\Tools\MonitorPy.exe --flag", r"C:\Tools\MonitorPy.exe"),
+    (r'  "C:\unterminated', r"C:\unterminated"),
+])
+def test_command_target_extracts_the_program(command, target):
+    assert autostart.command_target(command) == target
+
+
+def test_entry_pointing_at_a_moved_exe_is_repointed(frozen_exe, tmp_path):
+    _write_run_value(f'"{tmp_path / "old" / "MonitorPy.exe"}"')  # no longer exists
+    assert autostart.repair_stale_entry() is True
+    assert _read_run_value() == f'"{frozen_exe}"'
+
+
+def test_entry_pointing_at_an_existing_exe_is_left_alone(frozen_exe, tmp_path):
+    other = tmp_path / "MonitorPy.exe"
+    other.write_bytes(b"")
+    _write_run_value(f'"{other}"')
+    assert autostart.repair_stale_entry() is False
+    assert _read_run_value() == f'"{other}"'
+
+
+def test_repair_never_turns_autostart_on(frozen_exe):
+    assert autostart.repair_stale_entry() is False
+    assert autostart.is_enabled() is False
+
+
+def test_running_from_source_never_rewrites_the_entry(tmp_path, monkeypatch):
+    monkeypatch.delattr(autostart.sys, "frozen", raising=False)
+    stale = f'"{tmp_path / "gone" / "MonitorPy.exe"}"'
+    _write_run_value(stale)
+    assert autostart.repair_stale_entry() is False
+    assert _read_run_value() == stale

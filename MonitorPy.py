@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 MonitorPy - Monitor Control System Tray Application for Windows 11/10
-Requires: pip install pystray pillow monitorcontrol pyinstaller
+Requires: pip install -r requirements.txt
 
 This file is the entry point (kept as a top-level script for `python MonitorPy.py`
 and for PyInstaller). The implementation lives in the monitorpy/ package.

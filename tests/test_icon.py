@@ -1,19 +1,22 @@
-"""Tray icon drawing."""
-from monitorpy.icon import create_tray_icon_image
+"""Tray icon drawing and loading."""
+from monitorpy import icon
+from monitorpy.icon import draw_monitor_icon, load_tray_icon_image
 
 
-def test_icon_has_the_requested_size_and_mode():
-    img = create_tray_icon_image(64, 64, 'black', 'white')
+def test_drawn_icon_has_the_requested_size_and_transparency():
+    img = draw_monitor_icon(64)
     assert img.size == (64, 64)
-    assert img.mode == "RGB"
+    assert img.mode == "RGBA"
+    assert img.getpixel((0, 0))[3] == 0          # corner outside the monitor is transparent
+    assert img.getpixel((32, 20))[3] == 255      # the screen area is opaque
 
 
-def test_icon_corner_is_the_first_color_and_border_is_white():
-    img = create_tray_icon_image(64, 64, 'black', 'white')
-    assert img.getpixel((0, 0)) == (255, 255, 255)   # the outer border is always drawn white
-    assert img.getpixel((32, 32)) in ((0, 0, 0), (255, 255, 255))  # inside the split rectangle
+def test_tray_icon_loads_at_the_requested_size():
+    img = load_tray_icon_image(32)
+    assert img.size == (32, 32) and img.mode == "RGBA"
 
 
-def test_icon_works_at_a_non_square_non_default_size():
-    img = create_tray_icon_image(32, 16, 'red', 'blue')
-    assert img.size == (32, 16)
+def test_tray_icon_falls_back_to_drawing_when_the_ico_is_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(icon, "_icon_search_paths", lambda: iter([tmp_path / "missing.ico"]))
+    img = load_tray_icon_image(48)
+    assert img.size == (48, 48) and img.mode == "RGBA"

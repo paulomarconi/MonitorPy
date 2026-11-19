@@ -20,6 +20,16 @@ jobs:
         with:
           python-version: "3.13"
 
+      # v1.0.6 shipped saying "v1.0.5" in the tray because __version__ was not bumped.
+      - name: Check the tag matches monitorpy.__version__
+        shell: bash
+        run: |
+          version=$(python -c "import monitorpy; print(monitorpy.__version__)")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match monitorpy.__version__ ($version). Bump monitorpy/__init__.py, then delete and re-push the tag."
+            exit 1
+          fi
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 

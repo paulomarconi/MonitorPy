@@ -1,0 +1,29 @@
+name: CI
+
+# Runs the unit tests on every push / pull request to master, so a breakage shows up on
+# the commit that caused it instead of only when a release tag is pushed (release.yml).
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -m "not hardware"

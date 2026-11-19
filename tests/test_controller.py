@@ -405,3 +405,90 @@ def test_global_hotkeys_drive_brightness_and_contrast_while_hidden(controller, f
         assert ("brightness", 55) in mon.writes and ("contrast", 55) in mon.writes
     finally:
         controller._hotkeys.stop()
+
+
+# ------------------------------------------------------------------ unsupported features
+
+def test_unsupported_contrast_is_skipped_and_its_slider_disabled(controller, fake_monitor_env):
+    mon = FakeMonitor("AAA", fail_contrast=True)  # answers brightness, not contrast
+    fake_monitor_env["monitors"] = [mon]
+    fake_monitor_env["device_ids"] = [device_id("DEL", 1)]
+    controller.start_discovery()
+    settle(controller)
+
+    assert controller.contrast_scale.instate(["disabled"])
+    assert controller.contrast_label.cget("text") == "n/a"
+    assert not controller.brightness_scale.instate(["disabled"])
+
+    controller.quick_preset_2()
+    controller.increase_contrast()
+    settle(controller)
+    assert ("brightness", 30) in mon.writes
+    assert not [w for w in mon.writes if w[0] == "contrast"], "no write may be sent for an unsupported feature"
+    assert controller.set_contrast(40) is False
+
+
+def test_slider_is_reenabled_when_switching_to_a_monitor_that_supports_it(controller, fake_monitor_env):
+    fake_monitor_env["monitors"] = [FakeMonitor("AAA", fail_contrast=True), FakeMonitor("BBB")]
+    fake_monitor_env["device_ids"] = [device_id("DEL", 1), device_id("SAM", 2)]
+    controller.start_discovery()
+    settle(controller)
+    assert controller.contrast_scale.instate(["disabled"])
+
+    controller.monitor_listbox.selection_clear(0, "end")
+    controller.monitor_listbox.select_set(1)
+    controller.on_monitor_select()
+    assert not controller.contrast_scale.instate(["disabled"])
+    assert controller.contrast_label.cget("text") == "50%"
+
+
+def test_monitor_without_ddc_ci_disables_both_sliders(controller, fake_monitor_env):
+    fake_monitor_env["monitors"] = [FakeMonitor("AAA", fail_open=True)]
+    fake_monitor_env["device_ids"] = [device_id("DEL", 1)]
+    controller.start_discovery()
+    settle(controller)
+    assert controller.brightness_scale.instate(["disabled"])
+    assert controller.contrast_scale.instate(["disabled"])
+    assert controller.set_brightness(10) is False
+
+
+# --------------------------------------------------------------------------- keyboard / threads
+
+def test_escape_hides_the_control_window(controller):
+    assert controller.root.bind("<Escape>"), "Escape must be bound on the control window"
+    controller.show_control_window()
+    controller.root.update()
+    controller.root.event_generate("<Escape>")
+    controller.root.update()
+    assert controller.root.state() == "withdrawn"
+
+
+def test_escape_closes_the_presets_window(controller):
+    controller.open_edit_presets_window()
+    controller.root.update()
+    controller.edit_win.event_generate("<Escape>")
+    controller.root.update()
+    assert controller.edit_win is None
+
+
+def test_tray_thread_calls_are_rescheduled_onto_the_tk_thread(controller):
+    """What pystray menu callbacks rely on: a decorated method called from another thread
+    runs later, on the Tk main thread, never on the caller's thread."""
+    import threading
+    from monitorpy.controller import on_tk_thread
+    ran_on = []
+
+    class Probe:
+        root = controller.root
+
+        @on_tk_thread
+        def work(self):
+            ran_on.append(threading.current_thread() is threading.main_thread())
+
+    # Cross-thread root.after() is only honored while the main thread is inside mainloop(),
+    # and blocks until the main thread services it - so start the thread from a mainloop
+    # step and never join() it there (that would deadlock; pystray never joins either).
+    caller = threading.Thread(target=Probe().work, daemon=True)
+    run_steps_under_mainloop(controller.root, [(caller.start, lambda: ran_on == [True])])
+    caller.join(5)
+    assert ran_on == [True]

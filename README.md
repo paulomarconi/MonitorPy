@@ -25,7 +25,7 @@ MonitorPy is a simple system tray Python application for Windows 10/11 that allo
 
 ## Requirements 
 
-- Python 3.8+
+- Python 3.13 (the version the tests and release builds run on; other recent versions may work but are not tested)
 
 The following dependencies are used only if you run `MonitorPy.py` or build the standalone executable.
 
@@ -56,13 +56,14 @@ The following dependencies are used only if you run `MonitorPy.py` or build the 
     pyinstaller MonitorPy.spec
     ```
 
-- To push a new tag version and upload the `MonitorPy.exe` to Releases:
+- To publish a new release, bump `__version__` in `monitorpy/__init__.py`, commit, then push a matching tag:
 
     ```sh
-    git tag v1.0.4
-    git push origin v1.0.4
-    gh release create v1.0.4 dist/MonitorPy.exe --title "v1.0.4" --notes "your notes"
+    git tag v1.0.7
+    git push origin master v1.0.7
     ```
+
+    The **Release** GitHub Action then checks that the tag matches `__version__`, runs the tests, builds `MonitorPy.exe` and publishes it on the Releases page. Don't also run `gh release create`, since the workflow already creates the release.
 
 ## How it works
 
@@ -73,7 +74,7 @@ The following dependencies are used only if you run `MonitorPy.py` or build the 
   
 ## Development
 
-The code lives in the `monitorpy/` package (`MonitorPy.py` is just the entry point); `tests/` holds a pytest suite covering it.
+The code lives in the `monitorpy/` package (`MonitorPy.py` is just the entry point); `tests/` holds a pytest suite covering it. The **CI** GitHub Action runs it on every push to `master`.
 
 ```sh
 pip install -r requirements.txt
@@ -87,6 +88,8 @@ pytest -m "not hardware"   # skip the ones that need real monitors
 pytest -m hardware         # only those
 ```
 
+Close MonitorPy before running the tests: while it runs it holds the `Ctrl/Alt+F10/F11` hotkeys, and the hotkey tests fail.
+
 ## Settings and logs
 
 Both live in `%APPDATA%\MonitorPy\`:
@@ -97,6 +100,8 @@ Both live in `%APPDATA%\MonitorPy\`:
 ## Troubleshooting
 
 - If you see "No DDC/CI" next to a monitor, it means the monitor does not support DDC/CI or is not detected.
+- If a monitor only supports one of brightness/contrast, the other slider is greyed out and shows "n/a"; presets and hotkeys skip it.
+- Press `Esc` to close the control window.
 - Make sure you have the required permissions and drivers for monitor control.
 
 ## License

@@ -1,11 +1,12 @@
 """The application: tray icon, control window, and all the state that ties the pieces
 in the other monitorpy modules together."""
-import sys
+import functools
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 
 import pystray
+from monitorcontrol import get_monitors  # app.main() reports it nicely if it is missing
 
 from monitorpy import __version__
 from monitorpy import autostart
@@ -23,12 +24,18 @@ except ImportError:
     sv_ttk = None
     darkdetect = None
 
-try:
-    from monitorcontrol import get_monitors
-except ImportError:
-    log.error("monitorcontrol is not installed")
-    messagebox.showerror("Missing Dependency", "Please install monitorcontrol: pip install monitorcontrol")
-    sys.exit(1)
+
+def on_tk_thread(method):
+    """Run the method on the Tk main thread. Tray (pystray) and hotkey callbacks arrive on
+    their own threads, and touching Tk from there freezes or crashes it, so such calls are
+    re-scheduled with root.after() and return None immediately."""
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if self.root and threading.current_thread() is not threading.main_thread():
+            self.root.after(0, lambda: method(self, *args, **kwargs))
+            return None
+        return method(self, *args, **kwargs)
+    return wrapper
 
 
 class MonitorController:
@@ -55,6 +62,8 @@ class MonitorController:
         self._retry_on_open = False  # set when a detection failed
         self._hotkeys = None
         self.ui_scale = 1.0
+        self.brightness_step = 5  # per hotkey press
+        self.contrast_step = 5
 
     def start_hotkeys(self):
         self._hotkeys = HotkeyListener(HOTKEYS, self._on_hotkey, self._on_hotkeys_failed)
@@ -86,11 +95,9 @@ class MonitorController:
         self._worker.submit_call("discovery", self._probe_monitors)
         self._ensure_pump()
 
-    def refresh_monitors(self, icon=None, item=None):
+    @on_tk_thread
+    def refresh_monitors(self):
         """Re-detect monitors (tray menu). Ignored while a detection is already running."""
-        if self.root and threading.current_thread() is not threading.main_thread():
-            self.root.after(0, self.refresh_monitors)
-            return
         if not self.discovering:
             self.start_discovery()
 
@@ -140,7 +147,7 @@ class MonitorController:
         self._refresh_monitor_list()
         self.update_controls()
         if self.tray_icon:
-            self.tray_icon.title = f"Monitor Control - {'Connected' if self.monitor_connected else 'Disconnected'}"
+            self.tray_icon.title = f"MonitorPy - {'Connected' if self.monitor_connected else 'Disconnected'}"
             self.tray_icon.menu = self.create_tray_menu()
 
     # --- worker results are polled on the Tk thread, and only while work is outstanding ---
@@ -202,13 +209,11 @@ class MonitorController:
         except Exception as e:
             log.error("Failed to apply theme: %s", e)
 
+    @on_tk_thread
     def change_theme(self, theme_name):
         self.config.theme = theme_name
         self.config.save()
-        if self.root and threading.current_thread() is not threading.main_thread():
-            self.root.after(0, lambda: self.apply_theme(theme_name))
-        else:
-            self.apply_theme(theme_name)
+        self.apply_theme(theme_name)
         if self.tray_icon:
             try:
                 self.tray_icon.menu = self.create_tray_menu()
@@ -225,12 +230,8 @@ class MonitorController:
     def disable_autostart(self):
         return autostart.disable()
 
-    def toggle_autostart(self, icon=None, item=None):
-        # Ensure runs on Tk main thread when invoked from tray
-        if self.root and threading.current_thread() is not threading.main_thread():
-            if self.root:
-                self.root.after(0, lambda: self.toggle_autostart(None, None))
-            return
+    @on_tk_thread
+    def toggle_autostart(self):
         try:
             enabling = not self.is_autostart_enabled()
             ok = self.enable_autostart() if enabling else self.disable_autostart()
@@ -258,13 +259,26 @@ class MonitorController:
     def get_brightness(self):
         return self.current_brightness
 
+    def _has_selected_monitor(self):
+        return bool(self.monitor) and 0 <= self.selected_monitor_index < len(self.monitor_infos)
+
+    def _feature_supported(self, feature):
+        """Whether the selected monitor answered when `feature` was read at discovery.
+        Unknown (no 'supported' entry) counts as supported."""
+        if not self._has_selected_monitor():
+            return False
+        return self.monitor_infos[self.selected_monitor_index].get("supported", {}).get(feature, True)
+
     def _set_feature(self, feature, value):
         """Optimistically apply brightness/contrast to the selected monitor and queue the
-        DDC/CI write. Returns False if there is no monitor to write to. If the monitor
+        DDC/CI write. Returns False if there is no monitor to write to, or it does not
+        support `feature` (writing would only fail and bounce the UI back). If the monitor
         rejects the value, _on_write_result reverts the cached value and the UI."""
-        if not self.monitor or not 0 <= self.selected_monitor_index < len(self.monitor_infos):
+        if not self._has_selected_monitor():
             log.warning("Cannot set %s: no monitor selected", feature)
             return False
+        if not self._feature_supported(feature):
+            return False  # not logged: hotkeys and presets would repeat it on every press
         value = int(value)
         setattr(self, f"current_{feature}", value)
         self.monitor_infos[self.selected_monitor_index][feature] = value
@@ -296,10 +310,10 @@ class MonitorController:
         self.update_controls()
 
     def increase_brightness(self, event=None):
-        self.change_brightness_by(getattr(self, 'brightness_step', 5))
+        self.change_brightness_by(self.brightness_step)
 
     def decrease_brightness(self, event=None):
-        self.change_brightness_by(-getattr(self, 'brightness_step', 5))
+        self.change_brightness_by(-self.brightness_step)
 
     def change_contrast_by(self, delta):
         cur = self._clamp(self.get_contrast())
@@ -308,18 +322,14 @@ class MonitorController:
         self.update_controls()
 
     def increase_contrast(self, event=None):
-        self.change_contrast_by(getattr(self, 'contrast_step', 5))
+        self.change_contrast_by(self.contrast_step)
 
     def decrease_contrast(self, event=None):
-        self.change_contrast_by(-getattr(self, 'contrast_step', 5))
+        self.change_contrast_by(-self.contrast_step)
 
-    def show_control_window(self, icon=None, item=None):
+    @on_tk_thread
+    def show_control_window(self):
         """Toggle the control window visibility and position it near the tray icon"""
-        # If invoked from pystray's thread, schedule on Tk main thread to avoid freezes
-        if self.root and threading.current_thread() is not threading.main_thread():
-            if self.root:
-                self.root.after(0, lambda: self.show_control_window(None, None))
-            return
         if self.root and self.root.winfo_exists() and self.root.state() != 'withdrawn':
             self.hide_window()
             return
@@ -436,6 +446,7 @@ class MonitorController:
         self.root.resizable(False, False)
         self.root.attributes('-toolwindow', True)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
+        self.root.bind("<Escape>", lambda event: self.hide_window())
         self.root.overrideredirect(True)
         self.apply_theme()
 
@@ -459,8 +470,7 @@ class MonitorController:
         sliders_frame.pack(fill=tk.X, pady=8)
 
         ttk.Label(sliders_frame, text="Brightness (Ctrl+F10/F11)", font=("Segoe UI", 8)).grid(row=0, column=0, sticky=tk.W)
-        brightness_value = getattr(self, 'last_brightness', self.get_brightness())
-        self.brightness_var = tk.IntVar(value=brightness_value)
+        self.brightness_var = tk.IntVar(value=self.get_brightness())
         self.brightness_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.brightness_var,
                                       command=self.update_brightness_label, orient=tk.HORIZONTAL, length=self._px(140))
         self.brightness_scale.grid(row=1, column=0, padx=(0, self._px(10)))
@@ -470,8 +480,7 @@ class MonitorController:
         self.brightness_label.grid(row=2, column=0, sticky=tk.E)
 
         ttk.Label(sliders_frame, text="Contrast (Alt+F10/F11)", font=("Segoe UI", 8)).grid(row=0, column=1, sticky=tk.W)
-        contrast_value = getattr(self, 'last_contrast', self.get_contrast())
-        self.contrast_var = tk.IntVar(value=contrast_value)
+        self.contrast_var = tk.IntVar(value=self.get_contrast())
         self.contrast_scale = ttk.Scale(sliders_frame, from_=0, to=100, variable=self.contrast_var,
                                     command=self.update_contrast_label, orient=tk.HORIZONTAL, length=self._px(140))
         self.contrast_scale.grid(row=1, column=1, padx=(0, self._px(10)))
@@ -482,9 +491,6 @@ class MonitorController:
 
         self.position_near_tray()
         self.root.focus_force()
-        # keyboard shortcut defaults and bindings
-        self.brightness_step = getattr(self, 'brightness_step', 5)
-        self.contrast_step = getattr(self, 'contrast_step', 5)
         self._start_click_watch()
 
     def _refresh_monitor_list(self):
@@ -516,9 +522,16 @@ class MonitorController:
         if not self.brightness_var or not self.contrast_var:
             return
         self.brightness_var.set(self.get_brightness())
-        self.brightness_label.config(text=f"{self.brightness_var.get()}%")
         self.contrast_var.set(self.get_contrast())
-        self.contrast_label.config(text=f"{self.contrast_var.get()}%")
+        no_monitor = not self._has_selected_monitor()
+        for feature, scale, var, label in (
+                ("brightness", self.brightness_scale, self.brightness_var, self.brightness_label),
+                ("contrast", self.contrast_scale, self.contrast_var, self.contrast_label)):
+            # Grey out a slider the selected monitor cannot do (left enabled when there is
+            # no monitor at all, so the window looks normal while detecting).
+            usable = no_monitor or self._feature_supported(feature)
+            scale.state(["!disabled"] if usable else ["disabled"])
+            label.config(text=f"{var.get()}%" if usable else "n/a")
 
     def update_brightness_label(self, value):
         # ttk.Scale calls this only for user interaction (not var.set), so it is safe to
@@ -551,30 +564,23 @@ class MonitorController:
         if self.root:
             self.root.withdraw()
 
-    def open_edit_presets_window(self, icon=None, item=None):
+    @on_tk_thread
+    def open_edit_presets_window(self):
         """Open a modal to edit preset values for Preset 1 and Preset 2"""
-        # If invoked from the tray (pystray) thread, schedule on Tk main thread
-        if self.root and threading.current_thread() is not threading.main_thread():
-            if self.root:
-                self.root.after(0, lambda: self.open_edit_presets_window(None, None))
-            return
         if not self.root:
             return
 
         # If an edit window already exists, bring it to front instead of
         # creating a new one (ensure single-instance editor window).
-        existing = getattr(self, 'edit_win', None)
+        existing = self.edit_win
         try:
             if existing and existing.winfo_exists():
-                try:
-                    existing.deiconify()
-                    existing.lift()
-                    existing.focus_force()
-                except Exception:
-                    pass
+                existing.deiconify()
+                existing.lift()
+                existing.focus_force()
                 return
-        except Exception:
-            pass
+        except tk.TclError as e:
+            log.warning("Could not raise the existing presets window: %s", e)
         edit_win = tk.Toplevel(self.root)
         # remember the edit window so we can reuse it
         self.edit_win = edit_win
@@ -664,6 +670,7 @@ class MonitorController:
                 self.edit_win = None
         ttk.Button(btn_frame, text="Cancel", command=close_edit_window, width=len("Cancel")).pack(side=tk.RIGHT)
         edit_win.protocol("WM_DELETE_WINDOW", close_edit_window)
+        edit_win.bind("<Escape>", lambda event: close_edit_window())
         # Ensure main GUI is visible and positioned near tray so we can
         # place the editor window adjacent to it.
         try:
@@ -672,8 +679,8 @@ class MonitorController:
                 self._start_click_watch()
             self.position_near_tray()
             self.root.update_idletasks()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Could not show the control window next to the presets window: %s", e)
 
         # Position editor to left or right of main GUI depending on GUI x
         try:
@@ -703,15 +710,11 @@ class MonitorController:
             edit_win.deiconify()
             edit_win.lift()
             edit_win.focus_force()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("Could not position the presets window: %s", e)
 
-    def quit_app(self, icon=None, item=None):
-        # Ensure quit runs on the Tk main thread when triggered from tray
-        if self.root and threading.current_thread() is not threading.main_thread():
-            if self.root:
-                self.root.after(0, lambda: self.quit_app(None, None))
-            return
+    @on_tk_thread
+    def quit_app(self):
         if self._hotkeys:
             self._hotkeys.stop()
         self._worker.shutdown()  # flush queued writes (e.g. a preset applied just before exit)
@@ -734,24 +737,22 @@ class MonitorController:
             pystray.MenuItem(f"MonitorPy v{__version__} | Site", lambda icon, item: self.open_download_link(), enabled=True),
             pystray.MenuItem(f"Current Monitor: {current_monitor_name}", None, enabled=False),
             pystray.MenuItem("Show Controls", self.show_control_window, default=True),
-            pystray.MenuItem("Edit Presets", lambda icon, item: self.open_edit_presets_window()),
+            pystray.MenuItem("Edit Presets", self.open_edit_presets_window),
             pystray.MenuItem("Day", self.quick_preset_1),
             pystray.MenuItem("Night", self.quick_preset_2),
             pystray.MenuItem("Refresh monitors", self.refresh_monitors, enabled=lambda item: not self.discovering),
             pystray.MenuItem("Theme", theme_menu),
             pystray.MenuItem(
                 "Autostart on Windows startup",
-                lambda icon, item: self.toggle_autostart(),
+                self.toggle_autostart,
                 checked=lambda item: self.is_autostart_enabled()
             ),
             pystray.MenuItem("Exit", self.quit_app)
         )
 
+    @on_tk_thread
     def apply_preset(self, preset):
-        # If invoked from non-main thread (tray), schedule on Tk thread
-        if self.root and threading.current_thread() is not threading.main_thread():
-            self.root.after(0, lambda: self.apply_preset(preset))
-            return
+        """Apply a preset to the selected monitor; features it does not support are skipped."""
         self.set_brightness(preset.get("brightness", 100))
         self.set_contrast(preset.get("contrast", 70))
         self.update_controls()
@@ -765,9 +766,9 @@ class MonitorController:
     def run(self):
         icon_image = load_tray_icon_image(128)
         self.tray_icon = pystray.Icon(
-            "monitor_control",
+            "MonitorPy",
             icon_image,
-            "Monitor Control - Detecting monitors...",
+            "MonitorPy - Detecting monitors...",
             self.create_tray_menu()
         )
         tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
